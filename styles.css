@@ -53,6 +53,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 6px 0; }
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
+.logo { height: 32px; width: 32px; border-radius: 8px; }
 .docname { width: 150px; }
 .spacer { flex: 1; }
 
