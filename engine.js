@@ -1,434 +1,167 @@
-// Document model, geometry and drawing.
-// No DOM access: everything draws into a 2D canvas context that the caller provides.
+// Studio engine: document model, layers, drawing, undo/redo, export. No DOM controls here.
+const Engine = (() => {
+  const doc = { w: 1080, h: 1080, bg: '#ffffff', transparent: false, layers: [] };
+  const IMG = new Map(); // layer id -> <img>. Images stay out of undo snapshots.
+  const canvas = document.getElementById('c');
+  const g = canvas.getContext('2d');
+  const meas = document.createElement('canvas').getContext('2d');
+  const listeners = [];
+  let seq = 1, zoom = 0.5, selId = null, past = [], future = [], drag = null;
 
-export const BLENDS = [
-  "source-over", "multiply", "screen", "overlay", "darken", "lighten",
-  "color-dodge", "color-burn", "hard-light", "soft-light", "difference",
-  "exclusion", "hue", "saturation", "color", "luminosity",
-];
+  const snap = () => JSON.stringify({ w: doc.w, h: doc.h, bg: doc.bg, transparent: doc.transparent, layers: doc.layers });
+  const get = id => doc.layers.find(l => l.id === id) || null;
+  const fontOf = L => `${L.italic ? 'italic ' : ''}${L.weight || 400} ${L.size}px ${FONTS.stack(L.font || 'Inter')}`;
+  const loadImg = src => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
 
-const DEG = Math.PI / 180;
-const RTL_RE = /[֐-ࣿיִ-﷿ﹰ-﻿]/;
-export const isRTL = (s) => RTL_RE.test(s || "");
+  function changed() { render(); listeners.forEach(f => f()); }
+  function checkpoint() { past.push(snap()); if (past.length > 200) past.shift(); future = []; }
+  function restore(s) { Object.assign(doc, JSON.parse(s)); if (!get(selId)) selId = null; changed(); }
+  const undo = () => { if (past.length) { future.push(snap()); restore(past.pop()); } };
+  const redo = () => { if (future.length) { past.push(snap()); restore(future.pop()); } };
 
-const HANDLES = [[-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]];
-
-export function makeLayer(props) {
-  return {
-    name: "", visible: true, locked: false, rot: 0, opacity: 1, blend: "source-over",
-    fx: { brightness: 100, contrast: 100, saturate: 100, blur: 0 },
-    ...props,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Document: layers, selection, assets and undo/redo.
-// Every user action that changes the design calls snapshot() once first.
-// Live changes while dragging or typing use update(), which does not record history.
-// ---------------------------------------------------------------------------
-export class Doc {
-  constructor(w = 1080, h = 1080) {
-    this.w = w;
-    this.h = h;
-    this.bg = "#ffffff";
-    this.layers = [];          // bottom → top
-    this.selection = [];       // layer ids
-    this.nextId = 1;
-    this.assets = new Map();   // assetId → { src, img }
-    this.undoStack = [];
-    this.redoStack = [];
-    this.clipboard = [];
-    this.listeners = new Set();
-  }
-
-  onChange(fn) { this.listeners.add(fn); }
-  emit() { this.listeners.forEach((fn) => fn(this)); }
-
-  get(id) { return this.layers.find((l) => l.id === id); }
-  selected() { return this.selection.map((id) => this.get(id)).filter(Boolean); }
-  setSelection(ids) { this.selection = ids; this.emit(); }
-
-  // ----- assets (image data lives here, layers only hold the id) -----
-  newAssetId() { return "a" + Math.random().toString(36).slice(2, 10); }
-  addAsset(id, src, img) { this.assets.set(id, { src, img }); }
-  assetImg(id) { const a = this.assets.get(id); return a ? a.img : undefined; }
-  assetSrc(id) { const a = this.assets.get(id); return a ? a.src : undefined; }
-
-  // ----- history -----
-  _state() { return JSON.stringify({ w: this.w, h: this.h, bg: this.bg, layers: this.layers }); }
-
-  snapshot() {
-    this.undoStack.push(this._state());
-    if (this.undoStack.length > 150) this.undoStack.shift();
-    this.redoStack = [];
-  }
-
-  _apply(json) {
-    const s = JSON.parse(json);
-    this.w = s.w; this.h = s.h; this.bg = s.bg; this.layers = s.layers;
-    this.selection = this.selection.filter((id) => this.get(id));
-    this.emit();
-  }
-
-  undo() {
-    if (!this.undoStack.length) return;
-    this.redoStack.push(this._state());
-    this._apply(this.undoStack.pop());
-  }
-
-  redo() {
-    if (!this.redoStack.length) return;
-    this.undoStack.push(this._state());
-    this._apply(this.redoStack.pop());
-  }
-
-  // ----- edits -----
-  add(props, { record = true } = {}) {
-    if (record) this.snapshot();
-    const layer = { ...makeLayer(props), id: this.nextId++ };
-    this.layers.push(layer);
-    if (record) { this.selection = [layer.id]; this.emit(); }
-    return layer;
-  }
-
-  // Live update: no history entry, no re-render. Call snapshot() once at the start of the action.
-  update(id, patch) {
-    const l = this.get(id);
-    if (l) Object.assign(l, patch);
-  }
-
-  remove(ids = this.selection) {
-    if (!ids.length) return;
-    this.snapshot();
-    this.layers = this.layers.filter((l) => !ids.includes(l.id));
-    this.selection = [];
-    this.emit();
-  }
-
-  _clone(list) {
-    const copies = list.map((l) => ({ ...structuredClone(l), id: this.nextId++, x: l.x + 24, y: l.y + 24 }));
-    this.layers.push(...copies);
-    this.selection = copies.map((c) => c.id);
-    return copies;
-  }
-
-  duplicate(ids = this.selection) {
-    const src = this.layers.filter((l) => ids.includes(l.id));
-    if (!src.length) return;
-    this.snapshot();
-    this._clone(src);
-    this.emit();
-  }
-
-  copy() { this.clipboard = this.selected().map((l) => structuredClone(l)); }
-
-  paste() {
-    if (!this.clipboard.length) return;
-    this.snapshot();
-    this.clipboard = this._clone(this.clipboard).map((c) => structuredClone(c));
-    this.emit();
-  }
-
-  moveTo(id, index) {
-    const i = this.layers.findIndex((l) => l.id === id);
-    if (i < 0) return;
-    const j = Math.max(0, Math.min(this.layers.length - 1, index));
-    if (i === j) return;
-    this.snapshot();
-    const [l] = this.layers.splice(i, 1);
-    this.layers.splice(j, 0, l);
-    this.emit();
-  }
-
-  setSize(w, h) {
-    this.snapshot();
-    this.w = w; this.h = h;
-    this.emit();
-  }
-
-  // Replace the whole design (templates, opened projects). Undoable.
-  reset({ w, h, bg, layers }) {
-    this.snapshot();
-    this.w = w; this.h = h; this.bg = bg;
-    this.nextId = Math.max(0, ...layers.map((l) => (l.id != null ? l.id : 0))) + 1;
-    this.layers = layers.map((l) => ({ ...makeLayer(l), id: l.id != null ? l.id : this.nextId++ }));
-    this.selection = [];
-    this.emit();
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Geometry. Layers are boxes (x, y, w, h) rotated around their centre (rot, degrees).
-// ---------------------------------------------------------------------------
-
-// Doc point → layer-local coordinates (relative to centre, unrotated).
-export function toLocal(l, px, py) {
-  const dx = px - (l.x + l.w / 2), dy = py - (l.y + l.h / 2);
-  const a = -l.rot * DEG, c = Math.cos(a), s = Math.sin(a);
-  return { x: dx * c - dy * s, y: dx * s + dy * c };
-}
-
-// Layer-local (centre-relative) → doc point.
-export function toWorld(cx, cy, rot, lx, ly) {
-  const a = rot * DEG, c = Math.cos(a), s = Math.sin(a);
-  return { x: cx + lx * c - ly * s, y: cy + lx * s + ly * c };
-}
-
-export function corners(l) {
-  const cx = l.x + l.w / 2, cy = l.y + l.h / 2;
-  return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => toWorld(cx, cy, l.rot, (a * l.w) / 2, (b * l.h) / 2));
-}
-
-export function boundsOf(list) {
-  if (!list.length) return { x: 0, y: 0, w: 0, h: 0 };
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const l of list) {
-    for (const p of corners(l)) {
-      x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y);
-      x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y);
-    }
-  }
-  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
-}
-
-export function hitTest(l, px, py, pad = 0) {
-  const p = toLocal(l, px, py);
-  return Math.abs(p.x) <= l.w / 2 + pad && Math.abs(p.y) <= l.h / 2 + pad;
-}
-
-// Handle positions in doc coords. `pad` is how far the rotation handle sits above the box.
-export function handlePositions(l, pad) {
-  const cx = l.x + l.w / 2, cy = l.y + l.h / 2;
-  const out = HANDLES.map(([hx, hy]) => ({ hx, hy, ...toWorld(cx, cy, l.rot, (hx * l.w) / 2, (hy * l.h) / 2) }));
-  out.push({ rot: true, ...toWorld(cx, cy, l.rot, 0, -l.h / 2 - pad) });
-  return out;
-}
-
-// Resize a layer by dragging handle (hx, hy). The opposite edge stays fixed in the world.
-// Returns the new { x, y, w, h }.
-export function resizeFrom(orig, hx, hy, px, py, minSize = 4) {
-  const lp = toLocal(orig, px, py);
-  const ax = (-hx * orig.w) / 2, ay = (-hy * orig.h) / 2;   // anchor = opposite edge
-  let nw = orig.w, nh = orig.h;
-  if (hx) nw = Math.max(minSize, Math.abs(lp.x - ax));
-  if (hy) nh = Math.max(minSize, Math.abs(lp.y - ay));
-
-  const anchor = toWorld(orig.x + orig.w / 2, orig.y + orig.h / 2, orig.rot, ax, ay);
-  const na = { x: (-hx * nw) / 2, y: (-hy * nh) / 2 };        // new anchor, relative to new centre
-  const v = toWorld(0, 0, orig.rot, na.x, na.y);
-  const nc = { x: anchor.x - v.x, y: anchor.y - v.y };
-  return { w: nw, h: nh, x: nc.x - nw / 2, y: nc.y - nh / 2 };
-}
-
-export function rectFrom(a, b) {
-  return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) };
-}
-
-export function overlaps(a, b) {
-  return a.x <= b.x + b.w && a.x + a.w >= b.x && a.y <= b.y + b.h && a.y + a.h >= b.y;
-}
-
-// ---------------------------------------------------------------------------
-// Text layout
-// ---------------------------------------------------------------------------
-export function fontString(l) {
-  return `${l.italic ? "italic " : ""}${l.weight} ${l.size}px "${l.font}"`;
-}
-
-const CJK_SPLIT = /([぀-ヿ㐀-鿿豈-﫿＀-￯])/;
-const CJK_ONE = /^[぀-ヿ㐀-鿿豈-﫿＀-￯]$/;
-
-// Splits text into lines that fit maxW. The ctx must already have the font set.
-export function wrapLines(ctx, text, maxW) {
-  const out = [];
-  for (const para of String(text).split("\n")) {
-    // CJK characters have no spaces, so each one is a possible break point.
-    const parts = para.split(" ").flatMap((w) => w.split(CJK_SPLIT).filter(Boolean));
-    let line = "";
-    for (const part of parts) {
-      const needsSpace = line && !CJK_ONE.test(line.slice(-1)) && !CJK_ONE.test(part[0]);
-      const test = line + (needsSpace ? " " : "") + part;
-      if (line && ctx.measureText(test).width > maxW) {
-        out.push(line);
-        line = part;
-      } else {
-        line = test;
+  // Wrap text to the box width. Words wrap at spaces; long runs (Chinese has no spaces) break by character.
+  function lines(L) {
+    meas.font = fontOf(L);
+    const out = [], W = L.w;
+    const fit = t => {
+      const o = []; let s = t;
+      while (s.length > 1 && meas.measureText(s).width > W) {
+        let k = s.length - 1;
+        while (k > 1 && meas.measureText(s.slice(0, k)).width > W) k--;
+        o.push(s.slice(0, k)); s = s.slice(k);
       }
+      o.push(s); return o;
+    };
+    for (const para of String(L.text || '').split('\n')) {
+      let cur = '';
+      for (const word of para.split(' ')) {
+        const t = cur ? cur + ' ' + word : word;
+        if (!cur || meas.measureText(t).width <= W) { cur = t; continue; }
+        out.push(...fit(cur)); cur = word;
+      }
+      out.push(...fit(cur));
     }
-    out.push(line);
+    return out;
   }
-  return out;
-}
+  const boxH = L => (L.type === 'text' ? lines(L).length * L.size * 1.25 : L.h);
 
-// Lays out a text layer and updates its height. Returns the lines.
-export function layoutText(ctx, l) {
-  ctx.font = fontString(l);
-  const lines = wrapLines(ctx, l.text || " ", l.w);
-  l.h = lines.length * l.size * (l.lineHeight || 1.25);
-  return lines;
-}
+  function drawText(c, L) {
+    FONTS.ensure(L.font || 'Inter', L.weight || 400, changed);
+    const ls = lines(L), lh = L.size * 1.25;
+    c.font = fontOf(L); c.fillStyle = L.fill; c.textBaseline = 'top';
+    ls.forEach((t, i) => {
+      // Each line gets its own direction, so Kurdish/Arabic run right-to-left and English/numbers/Chinese left-to-right.
+      const rtl = L.dir !== 'ltr' && /[\u0590-\u08FF]/.test(t);
+      c.direction = rtl ? 'rtl' : 'ltr'; c.textAlign = 'left';
+      const tw = c.measureText(t).width, a = L.align || (rtl ? 'right' : 'left');
+      const x = a === 'center' ? L.x + (L.w - tw) / 2 : a === 'right' ? L.x + L.w - tw : L.x;
+      c.fillText(t, x, L.y + i * lh);
+    });
+  }
+  function drawLayer(c, L) {
+    c.save(); c.globalAlpha = L.opacity ?? 1;
+    if (L.type === 'rect') { c.fillStyle = L.fill; c.beginPath(); c.roundRect(L.x, L.y, L.w, L.h, L.r || 0); c.fill(); }
+    else if (L.type === 'ellipse') { c.fillStyle = L.fill; c.beginPath(); c.ellipse(L.x + L.w / 2, L.y + L.h / 2, L.w / 2, L.h / 2, 0, 0, Math.PI * 2); c.fill(); }
+    else if (L.type === 'image') { const im = IMG.get(L.id); if (im) c.drawImage(im, L.x, L.y, L.w, L.h); }
+    else drawText(c, L);
+    c.restore();
+  }
+  function render() {
+    const z = zoom * (window.devicePixelRatio || 1);
+    canvas.width = Math.round(doc.w * z); canvas.height = Math.round(doc.h * z);
+    canvas.style.width = doc.w * zoom + 'px'; canvas.style.height = doc.h * zoom + 'px';
+    g.setTransform(z, 0, 0, z, 0, 0); g.clearRect(0, 0, doc.w, doc.h);
+    if (!doc.transparent) { g.fillStyle = doc.bg; g.fillRect(0, 0, doc.w, doc.h); }
+    for (const L of doc.layers) if (L.visible !== false) drawLayer(g, L);
+    const S = get(selId);
+    if (S) { g.save(); g.setLineDash([6 / zoom, 4 / zoom]); g.lineWidth = 2 / zoom; g.strokeStyle = '#7c5cff'; g.strokeRect(S.x, S.y, S.w, boxH(S)); g.restore(); }
+  }
 
-// ---------------------------------------------------------------------------
-// Drawing
-// ---------------------------------------------------------------------------
-export function drawLayers(ctx, doc) {
-  ctx.fillStyle = doc.bg;
-  ctx.fillRect(0, 0, doc.w, doc.h);
-  for (const l of doc.layers) if (l.visible) drawLayer(ctx, doc, l);
-}
-
-function drawLayer(ctx, doc, l) {
-  if (l.type === "text") layoutText(ctx, l); // sizes the box first so we can centre it
-
-  ctx.save();
-  ctx.globalAlpha = l.opacity;
-  ctx.globalCompositeOperation = l.blend;
-  ctx.translate(l.x + l.w / 2, l.y + l.h / 2);
-  ctx.rotate(l.rot * DEG);
-
-  switch (l.type) {
-    case "image": {
-      const img = doc.assetImg(l.asset);
-      const f = l.fx;
-      ctx.filter = `brightness(${f.brightness}%) contrast(${f.contrast}%) saturate(${f.saturate}%) blur(${f.blur}px)`;
-      if (img && img.complete) ctx.drawImage(img, -l.w / 2, -l.h / 2, l.w, l.h);
-      break;
+  function hit(x, y) {
+    for (let i = doc.layers.length - 1; i >= 0; i--) {
+      const L = doc.layers[i];
+      if (L.visible !== false && x >= L.x && x <= L.x + L.w && y >= L.y && y <= L.y + boxH(L)) return L;
     }
-    case "rect":
-      ctx.beginPath();
-      ctx.roundRect(-l.w / 2, -l.h / 2, l.w, l.h, l.radius || 0);
-      fillAndStroke(ctx, l);
-      break;
-    case "ellipse":
-      ctx.beginPath();
-      ctx.ellipse(0, 0, l.w / 2, l.h / 2, 0, 0, Math.PI * 2);
-      fillAndStroke(ctx, l);
-      break;
-    case "text":
-      drawText(ctx, l);
-      break;
-    case "path":
-      drawPath(ctx, l);
-      break;
+    return null;
   }
-  ctx.restore();
-}
-
-function fillAndStroke(ctx, l) {
-  if (l.fill && l.fill !== "transparent") {
-    ctx.fillStyle = l.fill;
-    ctx.fill();
+  function add(type, p = {}) {
+    checkpoint();
+    const text = type === 'text';
+    const L = { id: 'L' + seq++, type, visible: true, x: doc.w * 0.2, y: doc.h * 0.3, w: doc.w * 0.6, h: doc.h * 0.2, fill: text ? '#1c2230' : '#7c5cff',
+      ...(text ? { text: 'Text', size: Math.round(doc.h * 0.06), weight: 700, font: 'Inter', align: 'left' } : {}), ...p };
+    doc.layers.push(L); selId = L.id; changed(); return L;
   }
-  if (l.strokeWidth > 0) {
-    ctx.lineWidth = l.strokeWidth;
-    ctx.strokeStyle = l.strokeColor || "#000000";
-    ctx.stroke();
+  function remove(id) { checkpoint(); doc.layers = doc.layers.filter(l => l.id !== id); if (selId === id) selId = null; changed(); }
+  function move(id, dir) { // +1 moves a layer toward the top of the stack
+    const i = doc.layers.findIndex(l => l.id === id), j = i + dir;
+    if (i < 0 || j < 0 || j >= doc.layers.length) return;
+    checkpoint(); [doc.layers[i], doc.layers[j]] = [doc.layers[j], doc.layers[i]]; changed();
   }
-}
+  function duplicate(id) {
+    const L = get(id); if (!L) return;
+    checkpoint();
+    const C = { ...L, id: 'L' + seq++, x: L.x + 40, y: L.y + 40 };
+    if (IMG.has(L.id)) IMG.set(C.id, IMG.get(L.id));
+    doc.layers.splice(doc.layers.indexOf(L) + 1, 0, C); selId = C.id; changed();
+  }
+  function update(id, p) { const L = get(id); if (!L) return; checkpoint(); Object.assign(L, p); changed(); }
+  async function addImage(src) {
+    const im = await loadImg(src);
+    const k = Math.min(1, doc.w * 0.7 / im.naturalWidth, doc.h * 0.7 / im.naturalHeight);
+    const w = Math.round(im.naturalWidth * k), h = Math.round(im.naturalHeight * k);
+    const L = add('image', { x: (doc.w - w) / 2, y: (doc.h - h) / 2, w, h });
+    IMG.set(L.id, im); changed(); return L;
+  }
+  function template(name) {
+    const T = TEMPLATES[name]; if (!T) return;
+    checkpoint();
+    const r = Math.min(doc.w, doc.h);
+    for (const t of T) {
+      const L = { id: 'L' + seq++, type: t.type, visible: true, x: t.x * doc.w, y: t.y * doc.h, w: t.w * doc.w, h: (t.h || 0) * doc.h, fill: t.fill, r: (t.r || 0) * r };
+      if (t.type === 'text') Object.assign(L, { text: t.text, size: Math.round(t.size * doc.h), weight: t.weight, font: t.font, align: t.align });
+      doc.layers.push(L);
+    }
+    changed();
+  }
 
-function drawText(ctx, l) {
-  const lines = layoutText(ctx, l);
-  const rtl = isRTL(l.text);
-  const lh = l.size * (l.lineHeight || 1.25);
-
-  ctx.font = fontString(l);
-  ctx.direction = rtl ? "rtl" : "ltr";
-  // Alphabetic baseline: the first line's baseline sits one em below the top of the box,
-  // so the glyphs stay inside the selection box instead of rising above it.
-  ctx.textBaseline = "alphabetic";
-
-  // Start/end follow the text direction, so Arabic and Kurdish align correctly.
-  const anchorRight = (l.align === "start" && rtl) || (l.align === "end" && !rtl);
-  ctx.textAlign = l.align === "center" ? "center" : anchorRight ? "right" : "left";
-  const ax = l.align === "center" ? 0 : anchorRight ? l.w / 2 : -l.w / 2;
-  const top = -l.h / 2;
-
-  ctx.fillStyle = l.color;
-  ctx.strokeStyle = l.strokeColor || "#000000";
-  ctx.lineWidth = l.strokeWidth || 0;
-  ctx.lineJoin = "round";
-  lines.forEach((line, i) => {
-    const y = top + i * lh + l.size;
-    if (l.strokeWidth > 0) ctx.strokeText(line, ax, y);
-    ctx.fillText(line, ax, y);
+  const toDoc = e => { const r = canvas.getBoundingClientRect(); return [(e.clientX - r.left) / zoom, (e.clientY - r.top) / zoom]; };
+  canvas.addEventListener('pointerdown', e => {
+    const [x, y] = toDoc(e), L = hit(x, y);
+    selId = L ? L.id : null;
+    drag = L ? { id: L.id, dx: x - L.x, dy: y - L.y, before: snap(), moved: false } : null;
+    canvas.setPointerCapture(e.pointerId); changed();
   });
-}
+  canvas.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const [x, y] = toDoc(e), L = get(drag.id);
+    if (!drag.moved) { past.push(drag.before); if (past.length > 200) past.shift(); future = []; drag.moved = true; }
+    L.x = Math.round(x - drag.dx); L.y = Math.round(y - drag.dy); changed();
+  });
+  const endDrag = () => { drag = null; };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
 
-function drawPath(ctx, l) {
-  const p = l.points || [];
-  if (!p.length) return;
-  const ox = -l.w / 2, oy = -l.h / 2;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.lineWidth = l.size;
-  ctx.strokeStyle = l.color;
-  ctx.fillStyle = l.color;
-
-  if (p.length === 1) {
-    ctx.beginPath();
-    ctx.arc(p[0].x + ox, p[0].y + oy, l.size / 2, 0, Math.PI * 2);
-    ctx.fill();
-    return;
+  function exportCanvas(scale) {
+    const c = document.createElement('canvas');
+    c.width = Math.round(doc.w * scale); c.height = Math.round(doc.h * scale);
+    const x = c.getContext('2d'); x.scale(scale, scale);
+    if (!doc.transparent) { x.fillStyle = doc.bg; x.fillRect(0, 0, doc.w, doc.h); }
+    for (const L of doc.layers) if (L.visible !== false) drawLayer(x, L);
+    return c;
   }
-  // Smooth curve through the midpoints of the sampled points.
-  ctx.beginPath();
-  ctx.moveTo(p[0].x + ox, p[0].y + oy);
-  for (let i = 1; i < p.length - 1; i++) {
-    const mx = (p[i].x + p[i + 1].x) / 2 + ox, my = (p[i].y + p[i + 1].y) / 2 + oy;
-    ctx.quadraticCurveTo(p[i].x + ox, p[i].y + oy, mx, my);
-  }
-  const last = p[p.length - 1];
-  ctx.lineTo(last.x + ox, last.y + oy);
-  ctx.stroke();
-}
-
-// Selection outline, handles and smart guides. Draw in doc coordinates; `zoom` keeps lines thin.
-export function drawOverlay(ctx, doc, zoom, { guideX = null, guideY = null, handles = true } = {}) {
-  const k = 1 / zoom;
-  const sel = doc.selected();
-  ctx.save();
-  ctx.lineWidth = k;
-
-  if (guideX != null || guideY != null) {
-    ctx.strokeStyle = "#ff4fd8";
-    ctx.setLineDash([6 * k, 4 * k]);
-    if (guideX != null) { ctx.beginPath(); ctx.moveTo(guideX, -1e5); ctx.lineTo(guideX, 1e5); ctx.stroke(); }
-    if (guideY != null) { ctx.beginPath(); ctx.moveTo(-1e5, guideY); ctx.lineTo(1e5, guideY); ctx.stroke(); }
-    ctx.setLineDash([]);
+  const project = () => JSON.stringify({ app: 'studio', v: 1, w: doc.w, h: doc.h, bg: doc.bg, transparent: doc.transparent, layers: doc.layers, images: Object.fromEntries([...IMG].map(([k, im]) => [k, im.src])) });
+  function load(text) {
+    const o = JSON.parse(text);
+    IMG.clear(); past = []; future = []; selId = null;
+    Object.assign(doc, { w: o.w, h: o.h, bg: o.bg, transparent: !!o.transparent, layers: o.layers || [] });
+    return Promise.all(Object.entries(o.images || {}).map(([id, src]) => loadImg(src).then(im => IMG.set(id, im)))).then(() => changed());
   }
 
-  if (sel.length) {
-    ctx.strokeStyle = "#7c5cff";
-    for (const l of sel) {
-      const c = corners(l);
-      ctx.beginPath();
-      c.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-      ctx.closePath();
-      ctx.stroke();
-    }
+  const setZoom = z => { zoom = Math.min(3, Math.max(0.1, z)); changed(); };
+  const fitTo = (sw, sh) => setZoom(Math.min((sw - 60) / doc.w, (sh - 60) / doc.h));
+  const select = id => { selId = id; changed(); };
+  const onChange = f => listeners.push(f);
 
-    if (sel.length === 1 && handles && sel[0].type !== "path") {
-      const l = sel[0];
-      let hp = handlePositions(l, 28 * k);
-      if (l.type === "text") hp = hp.filter((p) => p.rot || p.hy === 0); // text only resizes by width
-      const cx = l.x + l.w / 2, cy = l.y + l.h / 2;
-      const topMid = toWorld(cx, cy, l.rot, 0, -l.h / 2);
-      const rotH = hp.find((p) => p.rot);
-
-      ctx.beginPath();
-      ctx.moveTo(topMid.x, topMid.y);
-      ctx.lineTo(rotH.x, rotH.y);
-      ctx.stroke();
-
-      ctx.fillStyle = "#ffffff";
-      for (const p of hp) {
-        ctx.beginPath();
-        if (p.rot) ctx.arc(p.x, p.y, 5 * k, 0, Math.PI * 2);
-        else ctx.rect(p.x - 4 * k, p.y - 4 * k, 8 * k, 8 * k);
-        ctx.fill();
-        ctx.stroke();
-      }
-    }
-  }
-  ctx.restore();
-}
+  changed();
+  return { doc, canvas, IMG, get, add, addImage, remove, move, duplicate, update, undo, redo, template, select, setZoom, fitTo, onChange, changed, checkpoint, toDoc, boxH, exportCanvas, project, load, selected: () => selId, zoomNow: () => zoom };
+})();
