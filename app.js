@@ -705,7 +705,7 @@ async function insertImageFile(file) {
 
 // ---------- AI actions ----------
 // The Gemini API key from the settings. Stored only in this browser.
-function apiKey(AQ.Ab8RN6LzCPosaa58Q7C0hxYpCHqM-WSSfurP0lVQyk_VIGxB7w) {
+function apiKey() {
   const k = $("#apiKey").value.trim();
   if (!k) throw new Error(t("need_key"));
   return k;
