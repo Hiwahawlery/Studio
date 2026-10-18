@@ -22,8 +22,8 @@ button,select,input,textarea{font:inherit;color:inherit}
 .left,.right{background:var(--panel);overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
 .left{border-inline-end:1px solid var(--line)}
 .right{border-inline-start:1px solid var(--line)}
-.stage{position:relative;overflow:auto;display:flex;align-items:center;justify-content:center;background:var(--stage);padding:28px}
-canvas{box-shadow:0 10px 40px rgba(0,0,0,.3);background:#fff;touch-action:none}
+.stage{position:relative;overflow:auto;display:flex;background:var(--stage);padding:28px}
+canvas{margin:auto;flex:none;box-shadow:0 10px 40px rgba(0,0,0,.3);background:#fff;touch-action:none}
 .zoom{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px}
 .bottom{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:0 12px;background:var(--panel);border-top:1px solid var(--line);color:var(--muted);font-size:12px}
 .btn,.tool{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px;cursor:pointer;text-align:start}
@@ -63,6 +63,25 @@ h3{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 .bottom{flex:none;height:28px}
 @media (max-width:900px){body{overflow:auto}.main{flex:none;min-height:0}}
 
+/* Layer eye / lock buttons */
+.ic{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:0;background:none;border-radius:6px;color:var(--muted);cursor:pointer;flex:none}
+.ic:hover{background:var(--line);color:var(--ink)}
+.ic.act{color:var(--acc)}
+.lay.off span{opacity:.4}
+.lay.lk span{font-style:italic}
+.lay{padding:4px 6px}
+/* Hand tool (hold Space) */
+.stage.hand,.stage.hand canvas{cursor:grab}
+.stage.grabbing,.stage.grabbing canvas{cursor:grabbing}
+/* Shortcuts window */
+.modal{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px}
+.modal .card{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:14px;max-width:820px;width:100%;max-height:86vh;overflow:auto;padding:18px 22px}
+.modal h2{margin:0 0 12px;font-size:16px}
+.modal h4{margin:0 0 6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px 28px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;font-size:13px;align-items:center}
+kbd{background:var(--bg);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;font:12px/1.4 ui-monospace,Consolas,monospace;white-space:nowrap}
+
 </style>
 </head>
 <body>
@@ -81,6 +100,7 @@ addEventListener('error', e => { let b = document.getElementById('errbar');
   <select id="fmt" title="Format"><option value="png">PNG</option><option value="jpeg">JPG</option></select>
   <select id="scale" title="Scale"><option value="1">1×</option><option value="2" selected>2×</option><option value="3">3×</option></select>
   <button class="btn primary" id="export" data-i18n="export">Export</button>
+  <button class="btn" id="help" title="Keyboard shortcuts (?)">?</button>
   <button class="btn" id="theme" title="Dark mode">☾</button>
   <select id="lang" title="Language"><option value="en">English</option><option value="ku">کوردی</option><option value="ar">العربية</option><option value="zh">中文</option></select>
 </header>
@@ -125,7 +145,7 @@ addEventListener('error', e => { let b = document.getElementById('errbar');
   </aside>
 </div>
 
-<footer class="bottom"><span id="pos">x 0 · y 0</span><span id="size"></span><span>Made by Hewa KHoshnaw · build 5</span></footer>
+<footer class="bottom"><span id="pos">x 0 · y 0</span><span id="size"></span><span>Made by Hewa KHoshnaw · build 6</span></footer>
 
 <input type="file" id="fileImg" accept="image/*" hidden>
 <input type="file" id="fileOpen" accept=".json,application/json" multiple hidden>
@@ -133,10 +153,10 @@ addEventListener('error', e => { let b = document.getElementById('errbar');
 <script>
 // UI strings: English, Kurdish (Sorani), Arabic, Chinese. Add a language by copying the "en" block.
 const I18N = {
-  en: { select: 'Select', text: 'Text', rect: 'Rectangle', ellipse: 'Ellipse', image: 'Add image', undo: 'Undo', redo: 'Redo', open: 'Open', save: 'Save', export: 'Export', layers: 'Layers', props: 'Properties', ai: 'AI tools', ghibli: 'Ghibli style (AI)', generate: 'Generate image', translate: 'Translate to Kurdish + Arabic', key: 'Gemini API key (free)', keyNote: 'Free key from aistudio.google.com. Stored only in this browser.', page: 'Page size', orient: 'Orientation', bg: 'Background', transparent: 'Transparent', dup: 'Duplicate', del: 'Delete', prompt: 'Describe an image', closeConfirm: 'Close this tab? Unsaved changes will be lost.', badFile: 'This file is not a valid Studio project.' },
-  ku: { select: 'هەڵبژاردن', text: 'دەق', rect: 'چوارگۆشە', ellipse: 'بازنە', image: 'زیادکردنی وێنە', undo: 'گەڕانەوە', redo: 'دووبارە', open: 'کردنەوە', save: 'پاشەکەوت', export: 'هەناردە', layers: 'چینەکان', props: 'خاسیەتەکان', ai: 'ئامرازەکانی AI', ghibli: 'ستایلی Ghibli (AI)', generate: 'دروستکردنی وێنە', translate: 'وەرگێڕان بۆ کوردی + عەرەبی', key: 'کلیلی Gemini API (بەخۆڕایی)', keyNote: 'کلیلی بەخۆڕایی لە aistudio.google.com. تەنها لەم وێبگەڕەدا پاشەکەوت دەکرێت.', page: 'قەبارەی پەڕە', orient: 'ئاراستە', bg: 'پاشبنەما', transparent: 'ڕوون', dup: 'دووانکردن', del: 'سڕینەوە', prompt: 'وێنەیەک وەسف بکە', closeConfirm: 'ئەم تابە دابخرێت؟ گۆڕانکارییە پاشەکەوتنەکراوەکان لەدەست دەچن.', badFile: 'ئەم فایلە پڕۆژەیەکی Studio ی دروست نییە.' },
-  ar: { select: 'تحديد', text: 'نص', rect: 'مستطيل', ellipse: 'بيضاوي', image: 'إضافة صورة', undo: 'تراجع', redo: 'إعادة', open: 'فتح', save: 'حفظ', export: 'تصدير', layers: 'الطبقات', props: 'الخصائص', ai: 'أدوات الذكاء الاصطناعي', ghibli: 'نمط Ghibli (ذكاء اصطناعي)', generate: 'إنشاء صورة', translate: 'ترجمة إلى الكردية + العربية', key: 'مفتاح Gemini API (مجاني)', keyNote: 'مفتاح مجاني من aistudio.google.com. يُحفظ في هذا المتصفح فقط.', page: 'حجم الصفحة', orient: 'الاتجاه', bg: 'الخلفية', transparent: 'شفاف', dup: 'تكرار', del: 'حذف', prompt: 'صِف صورة', closeConfirm: 'إغلاق هذا التبويب؟ ستفقد التغييرات غير المحفوظة.', badFile: 'هذا الملف ليس مشروع Studio صالحًا.' },
-  zh: { select: '选择', text: '文字', rect: '矩形', ellipse: '椭圆', image: '添加图片', undo: '撤销', redo: '重做', open: '打开', save: '保存', export: '导出', layers: '图层', props: '属性', ai: 'AI 工具', ghibli: '吉卜力风格（AI）', generate: '生成图片', translate: '翻译成库尔德语和阿拉伯语', key: 'Gemini API 密钥（免费）', keyNote: '免费密钥请在 aistudio.google.com 获取，仅保存在此浏览器中。', page: '页面尺寸', orient: '方向', bg: '背景', transparent: '透明', dup: '复制', del: '删除', prompt: '描述一张图片', closeConfirm: '关闭此标签页？未保存的更改将丢失。', badFile: '此文件不是有效的 Studio 项目。' }
+  en: { select: 'Select', text: 'Text', rect: 'Rectangle', ellipse: 'Ellipse', image: 'Add image', undo: 'Undo', redo: 'Redo', open: 'Open', save: 'Save', export: 'Export', layers: 'Layers', props: 'Properties', ai: 'AI tools', ghibli: 'Ghibli style (AI)', generate: 'Generate image', translate: 'Translate to Kurdish + Arabic', key: 'Gemini API key (free)', keyNote: 'Free key from aistudio.google.com. Stored only in this browser.', page: 'Page size', orient: 'Orientation', bg: 'Background', transparent: 'Transparent', dup: 'Duplicate', del: 'Delete', prompt: 'Describe an image', closeConfirm: 'Close this tab? Unsaved changes will be lost.', badFile: 'This file is not a valid Studio project.', shortcuts: 'Keyboard shortcuts', lockedNote: 'This layer is locked. Click the lock icon to edit it.' },
+  ku: { select: 'هەڵبژاردن', text: 'دەق', rect: 'چوارگۆشە', ellipse: 'بازنە', image: 'زیادکردنی وێنە', undo: 'گەڕانەوە', redo: 'دووبارە', open: 'کردنەوە', save: 'پاشەکەوت', export: 'هەناردە', layers: 'چینەکان', props: 'خاسیەتەکان', ai: 'ئامرازەکانی AI', ghibli: 'ستایلی Ghibli (AI)', generate: 'دروستکردنی وێنە', translate: 'وەرگێڕان بۆ کوردی + عەرەبی', key: 'کلیلی Gemini API (بەخۆڕایی)', keyNote: 'کلیلی بەخۆڕایی لە aistudio.google.com. تەنها لەم وێبگەڕەدا پاشەکەوت دەکرێت.', page: 'قەبارەی پەڕە', orient: 'ئاراستە', bg: 'پاشبنەما', transparent: 'ڕوون', dup: 'دووانکردن', del: 'سڕینەوە', prompt: 'وێنەیەک وەسف بکە', closeConfirm: 'ئەم تابە دابخرێت؟ گۆڕانکارییە پاشەکەوتنەکراوەکان لەدەست دەچن.', badFile: 'ئەم فایلە پڕۆژەیەکی Studio ی دروست نییە.', shortcuts: 'کورتەبڕەکانی تەختەکلیل', lockedNote: 'ئەم چینە قفڵ کراوە. کلیک لەسەر هێمای قفڵ بکە بۆ دەستکاریکردن.' },
+  ar: { select: 'تحديد', text: 'نص', rect: 'مستطيل', ellipse: 'بيضاوي', image: 'إضافة صورة', undo: 'تراجع', redo: 'إعادة', open: 'فتح', save: 'حفظ', export: 'تصدير', layers: 'الطبقات', props: 'الخصائص', ai: 'أدوات الذكاء الاصطناعي', ghibli: 'نمط Ghibli (ذكاء اصطناعي)', generate: 'إنشاء صورة', translate: 'ترجمة إلى الكردية + العربية', key: 'مفتاح Gemini API (مجاني)', keyNote: 'مفتاح مجاني من aistudio.google.com. يُحفظ في هذا المتصفح فقط.', page: 'حجم الصفحة', orient: 'الاتجاه', bg: 'الخلفية', transparent: 'شفاف', dup: 'تكرار', del: 'حذف', prompt: 'صِف صورة', closeConfirm: 'إغلاق هذا التبويب؟ ستفقد التغييرات غير المحفوظة.', badFile: 'هذا الملف ليس مشروع Studio صالحًا.', shortcuts: 'اختصارات لوحة المفاتيح', lockedNote: 'هذه الطبقة مقفلة. انقر على أيقونة القفل للتعديل.' },
+  zh: { select: '选择', text: '文字', rect: '矩形', ellipse: '椭圆', image: '添加图片', undo: '撤销', redo: '重做', open: '打开', save: '保存', export: '导出', layers: '图层', props: '属性', ai: 'AI 工具', ghibli: '吉卜力风格（AI）', generate: '生成图片', translate: '翻译成库尔德语和阿拉伯语', key: 'Gemini API 密钥（免费）', keyNote: '免费密钥请在 aistudio.google.com 获取，仅保存在此浏览器中。', page: '页面尺寸', orient: '方向', bg: '背景', transparent: '透明', dup: '复制', del: '删除', prompt: '描述一张图片', closeConfirm: '关闭此标签页？未保存的更改将丢失。', badFile: '此文件不是有效的 Studio 项目。', shortcuts: '键盘快捷键', lockedNote: '此图层已锁定。点击锁图标即可编辑。' }
 };
 
 </script>
@@ -308,13 +328,13 @@ const Engine = (() => {
     if (!doc.transparent) { g.fillStyle = doc.bg; g.fillRect(0, 0, doc.w, doc.h); }
     for (const L of doc.layers) if (L.visible !== false) drawLayer(g, L);
     const S = get(selId);
-    if (S) { g.save(); g.setLineDash([6 / zoom, 4 / zoom]); g.lineWidth = 2 / zoom; g.strokeStyle = '#7c5cff'; g.strokeRect(S.x, S.y, S.w, boxH(S)); g.restore(); }
+    if (S) { g.save(); g.setLineDash([6 / zoom, 4 / zoom]); g.lineWidth = 2 / zoom; g.strokeStyle = S.locked ? '#8a90a2' : '#7c5cff'; g.strokeRect(S.x, S.y, S.w, boxH(S)); g.restore(); }
   }
 
   function hit(x, y) {
     for (let i = doc.layers.length - 1; i >= 0; i--) {
       const L = doc.layers[i];
-      if (L.visible !== false && x >= L.x && x <= L.x + L.w && y >= L.y && y <= L.y + boxH(L)) return L;
+      if (L.visible !== false && !L.locked && x >= L.x && x <= L.x + L.w && y >= L.y && y <= L.y + boxH(L)) return L;
     }
     return null;
   }
@@ -325,20 +345,50 @@ const Engine = (() => {
       ...(text ? { text: 'Text', size: Math.round(doc.h * 0.06), weight: 700, font: 'Inter', align: 'left' } : {}), ...p };
     doc.layers.push(L); selId = L.id; changed(); return L;
   }
-  function remove(id) { checkpoint(); doc.layers = doc.layers.filter(l => l.id !== id); if (selId === id) selId = null; changed(); }
-  function move(id, dir) { // +1 moves a layer toward the top of the stack
-    const i = doc.layers.findIndex(l => l.id === id), j = i + dir;
-    if (i < 0 || j < 0 || j >= doc.layers.length) return;
-    checkpoint(); [doc.layers[i], doc.layers[j]] = [doc.layers[j], doc.layers[i]]; changed();
+  function remove(id) { const L = get(id); if (!L || L.locked) return; checkpoint(); doc.layers = doc.layers.filter(l => l.id !== id); if (selId === id) selId = null; changed(); }
+  function arrange(id, where) { // 'front' | 'back' | 'forward' | 'backward'
+    const i = doc.layers.findIndex(l => l.id === id); if (i < 0 || doc.layers[i].locked) return;
+    const n = doc.layers.length;
+    const j = Math.max(0, Math.min(n - 1, where === 'front' ? n - 1 : where === 'back' ? 0 : where === 'forward' ? i + 1 : i - 1));
+    if (j === i) return;
+    checkpoint(); const [L] = doc.layers.splice(i, 1); doc.layers.splice(j, 0, L); changed();
   }
-  function duplicate(id) {
-    const L = get(id); if (!L) return;
+  const move = (id, dir) => arrange(id, dir > 0 ? 'forward' : 'backward'); // +1 moves a layer toward the top of the stack
+  function duplicate(id, off = 40) {
+    const L = get(id); if (!L || L.locked) return;
     checkpoint();
-    const C = { ...L, id: 'L' + seq++, x: L.x + 40, y: L.y + 40 };
+    const C = { ...L, id: 'L' + seq++, x: L.x + off, y: L.y + off };
     if (IMG.has(L.id)) IMG.set(C.id, IMG.get(L.id));
     doc.layers.splice(doc.layers.indexOf(L) + 1, 0, C); selId = C.id; changed();
   }
-  function update(id, p) { const L = get(id); if (!L) return; checkpoint(); Object.assign(L, p); changed(); }
+  // Locked layers only accept changes to 'locked' and 'visible'.
+  function update(id, p) {
+    const L = get(id); if (!L) return;
+    if (L.locked && !Object.keys(p).every(k => k === 'locked' || k === 'visible')) return;
+    checkpoint(); Object.assign(L, p); changed();
+  }
+  function bulk(fn) { checkpoint(); doc.layers.forEach(fn); changed(); } // one undo step for many layers (show all, unlock all, isolate...)
+
+  // Clipboard (shared by all tabs)
+  let clip = null, pasteN = 0, lastNudge = { id: null, t: 0 }, hand = false;
+  function copy(id) { const L = get(id); if (!L) return false; clip = { L: JSON.parse(JSON.stringify(L)), im: IMG.get(id) || null }; pasteN = 0; return true; }
+  function cut(id) { const L = get(id); if (L && !L.locked && copy(id)) remove(id); }
+  function paste(mode = 'offset') { // 'offset' | 'place' (same spot) | 'front' | 'back'
+    if (!clip) return;
+    checkpoint();
+    const C = { ...clip.L, id: 'L' + seq++, locked: false, visible: true };
+    if (mode === 'offset') { pasteN++; C.x += 20 * pasteN; C.y += 20 * pasteN; }
+    if (clip.im) IMG.set(C.id, clip.im);
+    if (mode === 'back') doc.layers.unshift(C); else doc.layers.push(C);
+    selId = C.id; changed();
+  }
+  function nudge(id, dx, dy) { // arrow keys; presses in quick succession count as one undo step
+    const L = get(id); if (!L || L.locked) return;
+    const now = Date.now();
+    if (lastNudge.id !== id || now - lastNudge.t > 700) checkpoint(); else markDirty();
+    lastNudge = { id, t: now }; L.x += dx; L.y += dy; changed();
+  }
+  const setHand = v => { hand = !!v; if (hand) drag = null; };
   async function addImage(src) {
     const im = await loadImg(src);
     const k = Math.min(1, doc.w * 0.7 / im.naturalWidth, doc.h * 0.7 / im.naturalHeight);
@@ -360,17 +410,23 @@ const Engine = (() => {
 
   const toDoc = e => { const r = canvas.getBoundingClientRect(); return [(e.clientX - r.left) / zoom, (e.clientY - r.top) / zoom]; };
   canvas.addEventListener('pointerdown', e => {
-    const [x, y] = toDoc(e), L = hit(x, y);
+    if (hand) return; // Space held: the stage pans instead
+    const [x, y] = toDoc(e);
+    let L = hit(x, y);
+    if (L && e.altKey) { duplicate(L.id, 0); L = get(selId); } // Alt+drag copies, like Illustrator
     selId = L ? L.id : null;
-    drag = L ? { id: L.id, dx: x - L.x, dy: y - L.y, before: snap(), moved: false } : null;
+    drag = L ? { id: L.id, dx: x - L.x, dy: y - L.y, x0: L.x, y0: L.y, before: snap(), moved: false } : null;
     canvas.setPointerCapture(e.pointerId); changed();
   });
   canvas.addEventListener('pointermove', e => {
     if (!drag) return;
     const [x, y] = toDoc(e), L = get(drag.id);
-    if (!L) { drag = null; return; }
+    if (!L || L.locked) { drag = null; return; }
+    let nx = Math.round(x - drag.dx), ny = Math.round(y - drag.dy);
+    if (e.shiftKey) { if (Math.abs(nx - drag.x0) > Math.abs(ny - drag.y0)) ny = drag.y0; else nx = drag.x0; } // Shift keeps one axis
+    if (nx === L.x && ny === L.y) return;
     if (!drag.moved) { markDirty(); past.push(drag.before); if (past.length > 200) past.shift(); future = []; drag.moved = true; }
-    L.x = Math.round(x - drag.dx); L.y = Math.round(y - drag.dy); changed();
+    L.x = nx; L.y = ny; changed();
   });
   const endDrag = () => { drag = null; };
   canvas.addEventListener('pointerup', endDrag);
@@ -393,7 +449,7 @@ const Engine = (() => {
   const onChange = f => listeners.push(f);
 
   changed();
-  return { build: 5, doc, canvas, IMG, get, add, addImage, remove, move, duplicate, update, undo, redo, template, select, setZoom, fitTo, onChange, changed, checkpoint, toDoc, boxH, exportCanvas, project,
+  return { build: 6, copy, cut, paste, arrange, nudge, bulk, setHand, isHand: () => hand, doc, canvas, IMG, get, add, addImage, remove, move, duplicate, update, undo, redo, template, select, setZoom, fitTo, onChange, changed, checkpoint, toDoc, boxH, exportCanvas, project,
     tabs, tabIndex: () => cur, tabId: () => tabs[cur].id, newTab, switchTo, switchToId, closeTab, renameTab, markSaved, openProject,
     selected: () => selId, zoomNow: () => zoom };
 })();
@@ -464,7 +520,7 @@ const AI = (() => {
   }
 
   return {
-    build: 5, key, setKey,
+    build: 6, key, setKey,
     generate: prompt => call(IMAGE_MODELS, [{ text: prompt }], true).then(toImage),
     edit: (blob, prompt) => toBase64(blob).then(data =>
       call(IMAGE_MODELS, [{ text: prompt }, { inlineData: { mimeType: blob.type || 'image/png', data } }], true)).then(toImage),
@@ -613,19 +669,33 @@ const AI = (() => {
   $('dup').onclick = () => { const s = E.selected(); if (s) E.duplicate(s); };
   $('del').onclick = () => { const s = E.selected(); if (s) E.remove(s); };
 
+  const SVG = p => `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+  const ICON = {
+    eye: SVG('<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'),
+    eyeOff: SVG('<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'),
+    lock: SVG('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
+    unlock: SVG('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>')
+  };
   function refreshLayers() {
     const box = $('layers'), sel = E.selected();
     box.innerHTML = '';
     [...E.doc.layers].reverse().forEach(L => {
+      const shown = L.visible !== false, locked = !!L.locked;
       const row = document.createElement('div');
-      row.className = 'lay' + (L.id === sel ? ' on' : '');
-      const eye = document.createElement('input');
-      eye.type = 'checkbox'; eye.checked = L.visible !== false; eye.title = 'Show / hide';
-      eye.onchange = () => E.update(L.id, { visible: eye.checked });
+      row.className = 'lay' + (L.id === sel ? ' on' : '') + (shown ? '' : ' off') + (locked ? ' lk' : '');
+      const mk = (cls, html, title, fn) => { const b = document.createElement('button'); b.className = 'ic ' + cls; b.innerHTML = html; b.title = title; b.onclick = fn; return b; };
+      const eye = mk(shown ? '' : 'act', shown ? ICON.eye : ICON.eyeOff, shown ? 'Hide (Alt+click: show only this layer)' : 'Show', ev => {
+        if (ev.altKey) { const only = E.doc.layers.every(x => x.id === L.id || x.visible === false); E.bulk(x => { x.visible = only ? true : x.id === L.id; }); }
+        else E.update(L.id, { visible: !shown });
+      });
+      const lock = mk(locked ? 'act' : '', locked ? ICON.lock : ICON.unlock, locked ? 'Unlock' : 'Lock (Alt+click: lock all others)', ev => {
+        if (ev.altKey) E.bulk(x => { x.locked = x.id !== L.id; });
+        else E.update(L.id, { locked: !locked });
+      });
       const name = document.createElement('span');
       name.textContent = L.type === 'text' ? (L.text || 'Text').slice(0, 24) : L.type;
-      row.append(eye, name);
-      row.onclick = e => { if (e.target !== eye) E.select(L.id); };
+      row.append(eye, lock, name);
+      row.onclick = e => { if (!e.target.closest('button')) E.select(L.id); };
       box.append(row);
     });
   }
@@ -661,6 +731,10 @@ const AI = (() => {
       const ratio = L.h / L.w;
       field('Width', num(L.w, v => set({ w: v, h: Math.round(v * ratio) })));
     }
+    if (L.locked) {
+      box.querySelectorAll('input,select,textarea').forEach(el => { el.disabled = true; });
+      const n = document.createElement('p'); n.className = 'muted'; n.textContent = t('lockedNote'); box.prepend(n);
+    }
   }
 
   function refreshUI() {
@@ -671,6 +745,8 @@ const AI = (() => {
     $('size').textContent = `${D.w} × ${D.h} px`;
     $('bg').value = D.bg; $('transp').checked = D.transparent;
     syncPage();
+    const S = E.get(E.selected());
+    ['up', 'down', 'dup', 'del'].forEach(id => { $(id).disabled = !S || !!S.locked; });
   }
 
   // AI tools (Gemini, free key from aistudio.google.com)
@@ -708,13 +784,103 @@ const AI = (() => {
   $('key').value = AI.key();
   $('key').onchange = e => AI.setKey(e.target.value);
 
-  // Keyboard: Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y, Delete
+  // ---- Shortcuts (Illustrator style). Letters use physical keys (e.code) so they also work on Kurdish/Arabic/Chinese layouts.
+  // Keys: "+" joins keys of one shortcut, "|" separates alternatives.
+  const HELP = [
+    ['Tools', [['T', 'Add text'], ['M', 'Add rectangle'], ['L', 'Add ellipse'], ['Ctrl+Shift+P', 'Place image'], ['Space+drag', 'Pan (hand tool)'], ['Esc', 'Deselect']]],
+    ['Edit', [['Ctrl+Z', 'Undo'], ['Ctrl+Shift+Z|Ctrl+Y', 'Redo'], ['Ctrl+C|Ctrl+X', 'Copy / Cut'], ['Ctrl+V', 'Paste'], ['Ctrl+Shift+V', 'Paste in place'], ['Ctrl+F', 'Paste in front'], ['Ctrl+B', 'Paste in back'], ['Ctrl+D', 'Duplicate'], ['Delete', 'Delete layer']]],
+    ['Move', [['Arrows', 'Nudge 1 px'], ['Shift+Arrows', 'Nudge 10 px'], ['Shift+drag', 'Keep to one axis'], ['Alt+drag', 'Drag a copy']]],
+    ['Arrange', [['Ctrl+]', 'Bring forward'], ['Ctrl+[', 'Send backward'], ['Ctrl+Shift+]', 'Bring to front'], ['Ctrl+Shift+[', 'Send to back']]],
+    ['Lock & hide', [['Ctrl+2|Ctrl+Shift+L', 'Lock selected layer'], ['Ctrl+Alt+2|Ctrl+Alt+Shift+L', 'Unlock all'], ['Ctrl+3|Ctrl+Shift+H', 'Hide selected layer'], ['Ctrl+Alt+3|Ctrl+Alt+Shift+H', 'Show all'], ['Alt+click', 'On the eye: show only this layer'], ['Alt+click', 'On the lock: lock all other layers']]],
+    ['View & file', [['Ctrl+0', 'Fit on screen'], ['Ctrl+1|Alt+1', 'Actual size (100%)'], ['Ctrl+=|Ctrl+-', 'Zoom in / out'], ['Ctrl+wheel|Alt+wheel', 'Zoom'], ['Ctrl+S', 'Save project'], ['Ctrl+O', 'Open project'], ['Ctrl+Shift+E', 'Export'], ['?|F1', 'This list']]]
+  ];
+  let helpEl = null;
+  function toggleHelp(force) {
+    const open = force !== undefined ? force : !helpEl;
+    if (!open) { if (helpEl) { helpEl.remove(); helpEl = null; } return; }
+    if (helpEl) return;
+    helpEl = document.createElement('div'); helpEl.className = 'modal';
+    const card = document.createElement('div'); card.className = 'card';
+    const h = document.createElement('h2'); h.textContent = t('shortcuts') + '  ·  Ctrl = ⌘ on Mac';
+    const cols = document.createElement('div'); cols.className = 'cols';
+    HELP.forEach(([title, rows]) => {
+      const sec = document.createElement('div'), h4 = document.createElement('h4'), kv = document.createElement('div');
+      h4.textContent = title; kv.className = 'kv';
+      rows.forEach(([k, d]) => {
+        const keys = document.createElement('span');
+        k.split('|').forEach((alt, i) => {
+          if (i) keys.append(' or ');
+          alt.split('+').forEach((part, j) => { if (j) keys.append('+'); const kb = document.createElement('kbd'); kb.textContent = part; keys.append(kb); });
+        });
+        const desc = document.createElement('span'); desc.textContent = d; kv.append(keys, desc);
+      });
+      if (title === 'Lock & hide') sec.style.gridColumn = '1 / -1';
+      sec.append(h4, kv); cols.append(sec);
+    });
+    card.append(h, cols); helpEl.append(card); document.body.append(helpEl);
+    helpEl.onclick = e => { if (e.target === helpEl) toggleHelp(false); };
+  }
+  if ($('help')) $('help').onclick = () => toggleHelp();
+
+  // Hand tool: hold Space and drag to pan
+  let pan = null;
+  const setHand = v => { E.setHand(v); stage.classList.toggle('hand', v); if (!v) { pan = null; stage.classList.remove('grabbing'); } };
+  stage.addEventListener('pointerdown', e => {
+    if (!E.isHand()) return;
+    pan = { x: e.clientX, y: e.clientY, l: stage.scrollLeft, t: stage.scrollTop };
+    stage.setPointerCapture(e.pointerId); stage.classList.add('grabbing'); e.preventDefault();
+  });
+  stage.addEventListener('pointermove', e => { if (pan) { stage.scrollLeft = pan.l - (e.clientX - pan.x); stage.scrollTop = pan.t - (e.clientY - pan.y); } });
+  stage.addEventListener('pointerup', () => { pan = null; stage.classList.remove('grabbing'); });
+  addEventListener('keyup', e => { if (e.key === ' ') setHand(false); });
+  addEventListener('blur', () => setHand(false));
+  stage.addEventListener('wheel', e => {
+    if (!(e.ctrlKey || e.altKey || e.metaKey)) return;
+    e.preventDefault(); E.setZoom(E.zoomNow() * (e.deltaY < 0 ? 1.1 : 1 / 1.1));
+  }, { passive: false });
+
   addEventListener('keydown', e => {
     if (e.target.closest && e.target.closest('input,textarea,select')) return;
-    const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase(), s = E.selected();
-    if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? E.redo() : E.undo(); }
-    else if (mod && k === 'y') { e.preventDefault(); E.redo(); }
-    else if ((e.key === 'Delete' || e.key === 'Backspace') && s) { e.preventDefault(); E.remove(s); }
+    const c = e.code, mod = e.ctrlKey || e.metaKey, sh = e.shiftKey, alt = e.altKey, s = E.selected(), stop = () => e.preventDefault();
+    if (e.key === ' ') { if (document.activeElement && document.activeElement.tagName === 'BUTTON') document.activeElement.blur(); stop(); setHand(true); return; }
+    if (e.key === '?' || c === 'F1') { stop(); toggleHelp(); return; }
+    if (c === 'Escape') { if (helpEl) toggleHelp(false); else E.select(null); return; }
+    if (helpEl) return;
+    if (mod) {
+      const lock = c === 'Digit2' || (c === 'KeyL' && sh), hide = c === 'Digit3' || (c === 'KeyH' && sh);
+      if (lock) { stop(); if (alt) E.bulk(L => { L.locked = false; }); else if (s) E.update(s, { locked: true }); }
+      else if (hide) { stop(); if (alt) E.bulk(L => { L.visible = true; }); else if (s) E.update(s, { visible: false }); }
+      else if (c === 'KeyZ') { stop(); sh ? E.redo() : E.undo(); }
+      else if (c === 'KeyY') { stop(); E.redo(); }
+      else if (c === 'KeyC') { if (s) { stop(); E.copy(s); } }
+      else if (c === 'KeyX') { if (s) { stop(); E.cut(s); } }
+      else if (c === 'KeyV') { stop(); E.paste(sh ? 'place' : 'offset'); }
+      else if (c === 'KeyF') { stop(); E.paste('front'); }
+      else if (c === 'KeyB') { stop(); E.paste('back'); }
+      else if (c === 'KeyD') { if (s) { stop(); E.duplicate(s); } }
+      else if (c === 'BracketRight') { if (s) { stop(); E.arrange(s, sh ? 'front' : 'forward'); } }
+      else if (c === 'BracketLeft') { if (s) { stop(); E.arrange(s, sh ? 'back' : 'backward'); } }
+      else if (c === 'KeyS') { stop(); $('save').click(); }
+      else if (c === 'KeyO') { stop(); $('open').click(); }
+      else if (c === 'KeyE' && sh) { stop(); $('export').click(); }
+      else if (c === 'KeyP' && sh) { stop(); ADD.image(); }
+      else if (c === 'Digit0') { stop(); fit(); }
+      else if (c === 'Digit1') { stop(); E.setZoom(1); }
+      else if (c === 'Equal' || c === 'NumpadAdd') { stop(); E.setZoom(E.zoomNow() * 1.25); }
+      else if (c === 'Minus' || c === 'NumpadSubtract') { stop(); E.setZoom(E.zoomNow() / 1.25); }
+      return;
+    }
+    if (alt && c === 'Digit1') { stop(); E.setZoom(1); return; }
+    if (c.startsWith('Arrow') && s) {
+      stop(); const n = sh ? 10 : 1;
+      E.nudge(s, c === 'ArrowLeft' ? -n : c === 'ArrowRight' ? n : 0, c === 'ArrowUp' ? -n : c === 'ArrowDown' ? n : 0); return;
+    }
+    if ((e.key === 'Delete' || e.key === 'Backspace') && s) { stop(); E.remove(s); return; }
+    if (!alt && !sh) {
+      if (c === 'KeyT') { stop(); ADD.text(); }
+      else if (c === 'KeyM') { stop(); ADD.rect(); }
+      else if (c === 'KeyL') { stop(); ADD.ellipse(); }
+    }
   });
   E.canvas.addEventListener('pointermove', e => { const [x, y] = E.toDoc(e); $('pos').textContent = `x ${Math.round(x)} · y ${Math.round(y)}`; });
 
@@ -733,8 +899,8 @@ const AI = (() => {
 setTimeout(() => {
   const bad = [];
   if (getComputedStyle(document.body).display !== 'flex') bad.push('styles.css');
-  if (typeof Engine === 'undefined' || Engine.build !== 5) bad.push('engine.js');
-  if (typeof AI === 'undefined' || AI.build !== 5) bad.push('ai.js');
+  if (typeof Engine === 'undefined' || Engine.build !== 6) bad.push('engine.js');
+  if (typeof AI === 'undefined' || AI.build !== 6) bad.push('ai.js');
   if (typeof I18N === 'undefined' || !I18N.en.closeConfirm) bad.push('i18n.js');
   if (!document.querySelector('#tabs .tab')) bad.push('app.js');
   if (bad.length) { const b = document.createElement('div'); b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#b00020;color:#fff;font:14px/1.5 sans-serif;padding:10px 14px'; b.textContent = 'These files on your server are OUT OF DATE: ' + bad.join(', ') + '. Upload the newest versions (or use the single-file studio.html) and hard refresh with Ctrl+Shift+R.'; document.body.append(b); }

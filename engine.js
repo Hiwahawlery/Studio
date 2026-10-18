@@ -130,13 +130,13 @@ const Engine = (() => {
     if (!doc.transparent) { g.fillStyle = doc.bg; g.fillRect(0, 0, doc.w, doc.h); }
     for (const L of doc.layers) if (L.visible !== false) drawLayer(g, L);
     const S = get(selId);
-    if (S) { g.save(); g.setLineDash([6 / zoom, 4 / zoom]); g.lineWidth = 2 / zoom; g.strokeStyle = '#7c5cff'; g.strokeRect(S.x, S.y, S.w, boxH(S)); g.restore(); }
+    if (S) { g.save(); g.setLineDash([6 / zoom, 4 / zoom]); g.lineWidth = 2 / zoom; g.strokeStyle = S.locked ? '#8a90a2' : '#7c5cff'; g.strokeRect(S.x, S.y, S.w, boxH(S)); g.restore(); }
   }
 
   function hit(x, y) {
     for (let i = doc.layers.length - 1; i >= 0; i--) {
       const L = doc.layers[i];
-      if (L.visible !== false && x >= L.x && x <= L.x + L.w && y >= L.y && y <= L.y + boxH(L)) return L;
+      if (L.visible !== false && !L.locked && x >= L.x && x <= L.x + L.w && y >= L.y && y <= L.y + boxH(L)) return L;
     }
     return null;
   }
@@ -147,20 +147,50 @@ const Engine = (() => {
       ...(text ? { text: 'Text', size: Math.round(doc.h * 0.06), weight: 700, font: 'Inter', align: 'left' } : {}), ...p };
     doc.layers.push(L); selId = L.id; changed(); return L;
   }
-  function remove(id) { checkpoint(); doc.layers = doc.layers.filter(l => l.id !== id); if (selId === id) selId = null; changed(); }
-  function move(id, dir) { // +1 moves a layer toward the top of the stack
-    const i = doc.layers.findIndex(l => l.id === id), j = i + dir;
-    if (i < 0 || j < 0 || j >= doc.layers.length) return;
-    checkpoint(); [doc.layers[i], doc.layers[j]] = [doc.layers[j], doc.layers[i]]; changed();
+  function remove(id) { const L = get(id); if (!L || L.locked) return; checkpoint(); doc.layers = doc.layers.filter(l => l.id !== id); if (selId === id) selId = null; changed(); }
+  function arrange(id, where) { // 'front' | 'back' | 'forward' | 'backward'
+    const i = doc.layers.findIndex(l => l.id === id); if (i < 0 || doc.layers[i].locked) return;
+    const n = doc.layers.length;
+    const j = Math.max(0, Math.min(n - 1, where === 'front' ? n - 1 : where === 'back' ? 0 : where === 'forward' ? i + 1 : i - 1));
+    if (j === i) return;
+    checkpoint(); const [L] = doc.layers.splice(i, 1); doc.layers.splice(j, 0, L); changed();
   }
-  function duplicate(id) {
-    const L = get(id); if (!L) return;
+  const move = (id, dir) => arrange(id, dir > 0 ? 'forward' : 'backward'); // +1 moves a layer toward the top of the stack
+  function duplicate(id, off = 40) {
+    const L = get(id); if (!L || L.locked) return;
     checkpoint();
-    const C = { ...L, id: 'L' + seq++, x: L.x + 40, y: L.y + 40 };
+    const C = { ...L, id: 'L' + seq++, x: L.x + off, y: L.y + off };
     if (IMG.has(L.id)) IMG.set(C.id, IMG.get(L.id));
     doc.layers.splice(doc.layers.indexOf(L) + 1, 0, C); selId = C.id; changed();
   }
-  function update(id, p) { const L = get(id); if (!L) return; checkpoint(); Object.assign(L, p); changed(); }
+  // Locked layers only accept changes to 'locked' and 'visible'.
+  function update(id, p) {
+    const L = get(id); if (!L) return;
+    if (L.locked && !Object.keys(p).every(k => k === 'locked' || k === 'visible')) return;
+    checkpoint(); Object.assign(L, p); changed();
+  }
+  function bulk(fn) { checkpoint(); doc.layers.forEach(fn); changed(); } // one undo step for many layers (show all, unlock all, isolate...)
+
+  // Clipboard (shared by all tabs)
+  let clip = null, pasteN = 0, lastNudge = { id: null, t: 0 }, hand = false;
+  function copy(id) { const L = get(id); if (!L) return false; clip = { L: JSON.parse(JSON.stringify(L)), im: IMG.get(id) || null }; pasteN = 0; return true; }
+  function cut(id) { const L = get(id); if (L && !L.locked && copy(id)) remove(id); }
+  function paste(mode = 'offset') { // 'offset' | 'place' (same spot) | 'front' | 'back'
+    if (!clip) return;
+    checkpoint();
+    const C = { ...clip.L, id: 'L' + seq++, locked: false, visible: true };
+    if (mode === 'offset') { pasteN++; C.x += 20 * pasteN; C.y += 20 * pasteN; }
+    if (clip.im) IMG.set(C.id, clip.im);
+    if (mode === 'back') doc.layers.unshift(C); else doc.layers.push(C);
+    selId = C.id; changed();
+  }
+  function nudge(id, dx, dy) { // arrow keys; presses in quick succession count as one undo step
+    const L = get(id); if (!L || L.locked) return;
+    const now = Date.now();
+    if (lastNudge.id !== id || now - lastNudge.t > 700) checkpoint(); else markDirty();
+    lastNudge = { id, t: now }; L.x += dx; L.y += dy; changed();
+  }
+  const setHand = v => { hand = !!v; if (hand) drag = null; };
   async function addImage(src) {
     const im = await loadImg(src);
     const k = Math.min(1, doc.w * 0.7 / im.naturalWidth, doc.h * 0.7 / im.naturalHeight);
@@ -182,17 +212,23 @@ const Engine = (() => {
 
   const toDoc = e => { const r = canvas.getBoundingClientRect(); return [(e.clientX - r.left) / zoom, (e.clientY - r.top) / zoom]; };
   canvas.addEventListener('pointerdown', e => {
-    const [x, y] = toDoc(e), L = hit(x, y);
+    if (hand) return; // Space held: the stage pans instead
+    const [x, y] = toDoc(e);
+    let L = hit(x, y);
+    if (L && e.altKey) { duplicate(L.id, 0); L = get(selId); } // Alt+drag copies, like Illustrator
     selId = L ? L.id : null;
-    drag = L ? { id: L.id, dx: x - L.x, dy: y - L.y, before: snap(), moved: false } : null;
+    drag = L ? { id: L.id, dx: x - L.x, dy: y - L.y, x0: L.x, y0: L.y, before: snap(), moved: false } : null;
     canvas.setPointerCapture(e.pointerId); changed();
   });
   canvas.addEventListener('pointermove', e => {
     if (!drag) return;
     const [x, y] = toDoc(e), L = get(drag.id);
-    if (!L) { drag = null; return; }
+    if (!L || L.locked) { drag = null; return; }
+    let nx = Math.round(x - drag.dx), ny = Math.round(y - drag.dy);
+    if (e.shiftKey) { if (Math.abs(nx - drag.x0) > Math.abs(ny - drag.y0)) ny = drag.y0; else nx = drag.x0; } // Shift keeps one axis
+    if (nx === L.x && ny === L.y) return;
     if (!drag.moved) { markDirty(); past.push(drag.before); if (past.length > 200) past.shift(); future = []; drag.moved = true; }
-    L.x = Math.round(x - drag.dx); L.y = Math.round(y - drag.dy); changed();
+    L.x = nx; L.y = ny; changed();
   });
   const endDrag = () => { drag = null; };
   canvas.addEventListener('pointerup', endDrag);
@@ -215,7 +251,7 @@ const Engine = (() => {
   const onChange = f => listeners.push(f);
 
   changed();
-  return { build: 5, doc, canvas, IMG, get, add, addImage, remove, move, duplicate, update, undo, redo, template, select, setZoom, fitTo, onChange, changed, checkpoint, toDoc, boxH, exportCanvas, project,
+  return { build: 6, copy, cut, paste, arrange, nudge, bulk, setHand, isHand: () => hand, doc, canvas, IMG, get, add, addImage, remove, move, duplicate, update, undo, redo, template, select, setZoom, fitTo, onChange, changed, checkpoint, toDoc, boxH, exportCanvas, project,
     tabs, tabIndex: () => cur, tabId: () => tabs[cur].id, newTab, switchTo, switchToId, closeTab, renameTab, markSaved, openProject,
     selected: () => selId, zoomNow: () => zoom };
 })();
