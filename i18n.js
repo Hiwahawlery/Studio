@@ -26,7 +26,7 @@ export const T = {
     saturate: "Saturation", blur: "Blur", name: "Name",
     need_image: "Select an image layer first.", need_text: "Select a text layer first.",
     need_key: "Add your OpenAI key in the AI section.", working: "Working…", done: "Done.",
-    error: "Error", prompt: "Describe the image you want:",
+    error: "Error", prompt: "Describe the image you want:", fit_width: "Fit width to text",
   },
   ku: {
     tool_select: "هەڵبژاردن", tool_text: "نووسین", tool_rect: "لاکێشە", tool_ellipse: "بازنە",
@@ -48,7 +48,7 @@ export const T = {
     brightness: "ڕووناکی", contrast: "جیاوازی", saturate: "پەنگ", blur: "شێواندن", name: "ناو",
     need_image: "یەکەم جار تەبەقەیەکی وێنە هەڵبژێرە.", need_text: "یەکەم جار تەبەقەیەکی نووسین هەڵبژێرە.",
     need_key: "کلیلی OpenAI لە بەشی AI زیاد بکە.", working: "کار دەکرێت…", done: "تەواو بوو.",
-    error: "هەڵە", prompt: "ئەو وێنەیە وەسف بکە کە دەتەوێت:",
+    error: "هەڵە", prompt: "ئەو وێنەیە وەسف بکە کە دەتەوێت:", fit_width: "پانیی بۆ نووسین",
   },
   ar: {
     tool_select: "تحديد", tool_text: "نص", tool_rect: "مستطيل", tool_ellipse: "بيضاوي",
@@ -69,6 +69,6 @@ export const T = {
     contrast: "التباين", saturate: "التشبع", blur: "الضبابية", name: "الاسم",
     need_image: "اختر طبقة صورة أولاً.", need_text: "اختر طبقة نص أولاً.",
     need_key: "أضف مفتاح OpenAI في قسم الذكاء الاصطناعي.", working: "جارٍ العمل…", done: "تم.",
-    error: "خطأ", prompt: "صف الصورة التي تريدها:",
+    error: "خطأ", prompt: "صف الصورة التي تريدها:", fit_width: "ملاءمة العرض للنص",
   },
 };
