@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- UI fonts: Kurdish/Arabic, Latin. Other fonts load on demand (see fonts.js). -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Naskh+Arabic:wght@400;700&family=Noto+Sans+Arabic:wght@400;700;900&family=Vazirmatn:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="icon" href="logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -90,11 +91,11 @@
     <aside class="side">
       <section>
         <h4 data-i18n="layers">Layers</h4>
-        <div class="btnrow">
-          <button id="zUp" title="]">↑</button>
-          <button id="zDown" title="[">↓</button>
-          <button id="dupBtn" data-i18n="duplicate">Duplicate</button>
-          <button id="delBtn" class="danger" data-i18n="delete">Delete</button>
+        <div class="btnrow tbar">
+          <button id="zUp" title="Bring forward ( ] )">↑</button>
+          <button id="zDown" title="Send backward ( [ )">↓</button>
+          <button id="dupBtn" title="Duplicate (Ctrl+D)">⧉</button>
+          <button id="delBtn" class="danger" title="Delete (Del)">🗑</button>
         </div>
         <div id="layerList" class="layers"></div>
       </section>
@@ -112,9 +113,17 @@
           <button id="aiGenerate" data-i18n="generate">Generate image</button>
           <button id="aiTranslate" data-i18n="translate">Translate to Kurdish + Arabic</button>
         </div>
-        <label class="stack"><span data-i18n="api_key">OpenAI API key</span>
-          <input id="apiKey" type="password" placeholder="sk-…" autocomplete="off">
-        </label>
+        <form class="stack" onsubmit="return false">
+          <label class="stack"><span data-i18n="provider">AI provider</span>
+            <select id="provider">
+              <option value="openai">OpenAI</option>
+              <option value="gemini">Google Gemini</option>
+            </select>
+          </label>
+          <label class="stack"><span data-i18n="api_key_label">API key</span>
+            <input id="apiKey" type="password" placeholder="sk-…" autocomplete="off">
+          </label>
+        </form>
         <p class="hint" data-i18n="api_hint">Stored only in this browser.</p>
       </section>
     </aside>
@@ -129,6 +138,19 @@
   <input id="fileInput" type="file" accept="image/*" hidden>
   <input id="openFile" type="file" accept=".json,application/json" hidden>
   <div id="toast"></div>
-  <script type="module" src="app.js"></script>
+  <script type="module">
+    // Startup guard: if any file is missing or fails to load, say so on the page
+    // instead of showing an empty editor.
+    import("./app.js").catch((err) => {
+      const box = document.createElement("div");
+      box.style.cssText = "position:fixed;inset:60px 20px auto;z-index:9999;background:#2a0d0d;color:#ffd7d7;padding:16px;border-radius:10px;font:14px/1.6 system-ui;direction:ltr;white-space:pre-wrap";
+      box.textContent =
+        "Studio could not start: " + (err && err.message) + "\n\n" +
+        "Upload ALL of these files to the same folder, with these exact names:\n" +
+        "index.html, styles.css, app.js, engine.js, fonts.js, presets.js, ai.js, i18n.js, logo.svg\n\n" +
+        "Then refresh the page (Ctrl+F5).";
+      document.body.prepend(box);
+    });
+  </script>
 </body>
 </html>
