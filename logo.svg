@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Studio logo: a red carpet with a gold K">
+  <defs>
+    <linearGradient id="red" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9e1f1f"/>
+      <stop offset="1" stop-color="#6b1212"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f3d27a"/>
+      <stop offset="1" stop-color="#b8862b"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Carpet field -->
+  <rect x="16" y="16" width="480" height="480" rx="56" fill="url(#red)"/>
+
+  <!-- Outer gold border with a zigzag (kilim-style) band -->
+  <rect x="44" y="44" width="424" height="424" rx="34" fill="none" stroke="url(#gold)" stroke-width="10"/>
+  <polyline fill="none" stroke="url(#gold)" stroke-width="8" stroke-linejoin="miter"
+    points="70,70 91,88 112,70 133,88 154,70 175,88 196,70 217,88 238,70 259,88 280,70 301,88 322,70 343,88 364,70 385,88 406,70 427,88 448,70 448,448 70,448 70,70"/>
+
+  <!-- Diamond medallions in the corners -->
+  <g fill="url(#gold)">
+    <polygon points="256,40 272,56 256,72 240,56"/>
+    <polygon points="256,440 272,456 256,472 240,456"/>
+    <polygon points="40,256 56,240 72,256 56,272"/>
+    <polygon points="440,256 456,240 472,256 456,272"/>
+  </g>
+
+  <!-- Centre medallion behind the K -->
+  <polygon points="256,128 364,256 256,384 148,256" fill="none" stroke="url(#gold)" stroke-width="8"/>
+
+  <!-- The K, drawn as shapes so it renders the same everywhere -->
+  <g fill="#f7e7bd">
+    <rect x="176" y="168" width="44" height="176"/>
+    <polygon points="214,260 318,168 352,168 240,266"/>
+    <polygon points="236,246 352,344 318,344 206,250"/>
+  </g>
+
+  <!-- Credit -->
+  <text x="256" y="486" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="18" letter-spacing="2" fill="#f3d27a">HEWA KHOSHNAW</text>
+</svg>
