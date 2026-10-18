@@ -7,9 +7,14 @@
 <link rel="icon" href="logo.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Noto+Sans+Arabic:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=swap">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
+<script>
+addEventListener('error', e => { let b = document.getElementById('errbar');
+  if (!b) { b = document.createElement('div'); b.id = 'errbar'; b.style.cssText = 'position:fixed;left:0;right:0;bottom:30px;z-index:99999;background:#b00020;color:#fff;font:13px/1.4 monospace;padding:8px 12px;white-space:pre-wrap'; document.body.append(b); }
+  b.textContent += 'Error: ' + e.message + ' (' + (e.filename || '').split('/').pop() + ':' + e.lineno + ')\n'; });
+</script>
 <header class="top">
   <div class="brand"><img src="logo.svg" alt=""><b>Studio</b></div>
   <select id="tpl" title="Templates"><option value="">Templates</option><option value="headline">Headline card</option></select>
@@ -23,6 +28,7 @@
   <button class="btn" id="theme" title="Dark mode">☾</button>
   <select id="lang" title="Language"><option value="en">English</option><option value="ku">کوردی</option><option value="ar">العربية</option><option value="zh">中文</option></select>
 </header>
+<nav class="tabs" id="tabs"></nav>
 
 <div class="main">
   <aside class="left">
@@ -63,16 +69,16 @@
   </aside>
 </div>
 
-<footer class="bottom"><span id="pos">x 0 · y 0</span><span id="size"></span><span>Made by Hewa KHoshnaw</span></footer>
+<footer class="bottom"><span id="pos">x 0 · y 0</span><span id="size"></span><span>Made by Hewa KHoshnaw · build 5</span></footer>
 
 <input type="file" id="fileImg" accept="image/*" hidden>
-<input type="file" id="fileOpen" accept=".json,application/json" hidden>
+<input type="file" id="fileOpen" accept=".json,application/json" multiple hidden>
 
-<script src="i18n.js"></script>
-<script src="presets.js"></script>
-<script src="fonts.js"></script>
-<script src="engine.js"></script>
-<script src="ai.js"></script>
-<script src="app.js"></script>
+<script src="i18n.js?v=5"></script>
+<script src="presets.js?v=5"></script>
+<script src="fonts.js?v=5"></script>
+<script src="engine.js?v=5"></script>
+<script src="ai.js?v=5"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>
