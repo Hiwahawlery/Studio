@@ -9,6 +9,10 @@
     a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 3000);
   };
+  // Self-heal: if an older index.html has no tab bar, create it so the app never crashes
+  let tabsBox = $('tabs');
+  if (!tabsBox) { tabsBox = document.createElement('nav'); tabsBox.id = 'tabs'; tabsBox.className = 'tabs'; document.querySelector('header.top').after(tabsBox); }
+  $('fileOpen').multiple = true;
   const tabName = () => E.tabs[E.tabIndex()].name.replace(/[\\/:*?"<>|]/g, '_');
   const fit = () => E.fitTo(stage.clientWidth, stage.clientHeight);
 
@@ -58,7 +62,7 @@
     const sig = E.tabs.map(x => x.id + ':' + x.name + ':' + x.dirty).join('|') + '#' + E.tabIndex();
     if (sig === tabSig) return; // only rebuild when something visible changed
     tabSig = sig;
-    const box = $('tabs'); box.innerHTML = '';
+    const box = tabsBox; box.innerHTML = '';
     E.tabs.forEach((tab, i) => {
       const el = document.createElement('div');
       el.className = 'tab' + (i === E.tabIndex() ? ' on' : '');
