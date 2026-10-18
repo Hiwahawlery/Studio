@@ -327,7 +327,9 @@ function drawText(ctx, l) {
 
   ctx.font = fontString(l);
   ctx.direction = rtl ? "rtl" : "ltr";
-  ctx.textBaseline = "top";
+  // Alphabetic baseline: the first line's baseline sits one em below the top of the box,
+  // so the glyphs stay inside the selection box instead of rising above it.
+  ctx.textBaseline = "alphabetic";
 
   // Start/end follow the text direction, so Arabic and Kurdish align correctly.
   const anchorRight = (l.align === "start" && rtl) || (l.align === "end" && !rtl);
@@ -340,7 +342,7 @@ function drawText(ctx, l) {
   ctx.lineWidth = l.strokeWidth || 0;
   ctx.lineJoin = "round";
   lines.forEach((line, i) => {
-    const y = top + i * lh;
+    const y = top + i * lh + l.size;
     if (l.strokeWidth > 0) ctx.strokeText(line, ax, y);
     ctx.fillText(line, ax, y);
   });
