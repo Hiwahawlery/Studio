@@ -1,11 +1,11 @@
-// AI features, powered by Google Gemini.
+// HewAi: the AI features of Studio, powered by Google Gemini.
 //   Translation:        gemini-2.5-flash (text)
 //   Images and styles:  gemini-2.5-flash-image
 // Calls go straight from the browser to Google, using the user's own free API key
 // (get one at https://aistudio.google.com/apikey). The key stays in this browser only.
 
 const GEMINI = "https://generativelanguage.googleapis.com/v1beta";
-const TEXT_MODEL = "gemini-2.5-flash";
+const TEXT_MODEL = "gemini-3.8-flash";
 const IMAGE_MODEL = "gemini-2.5-flash-image";
 
 const TRANSLATE_PROMPT =
