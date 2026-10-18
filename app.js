@@ -704,21 +704,11 @@ async function insertImageFile(file) {
 }
 
 // ---------- AI actions ----------
-// Which AI service is selected in the settings: "openai" or "gemini".
-function provider() {
-  return $("#provider").value === "gemini" ? "gemini" : "openai";
-}
-
-// The key for the selected provider. Each provider keeps its own key in this browser.
+// The Gemini API key from the settings. Stored only in this browser.
 function apiKey() {
   const k = $("#apiKey").value.trim();
   if (!k) throw new Error(t("need_key"));
   return k;
-}
-
-function loadKeyFor(p) {
-  $("#apiKey").value = localStorage.getItem(`studio_key_${p}`) || "";
-  $("#apiKey").placeholder = p === "gemini" ? "AIza…" : "sk-…";
 }
 
 async function removeBackgroundSelected() {
@@ -747,7 +737,7 @@ async function ghibliSelected() {
   toast(t("working"), 90000);
   try {
     const blob = await (await fetch(doc.assetSrc(l.asset))).blob();
-    const src = await AI.styleTransfer(blob, GHIBLI_PROMPT, apiKey(), provider());
+    const src = await AI.styleTransfer(blob, GHIBLI_PROMPT, apiKey());
     await insertImageSrc(src, "Ghibli style");
     toast(t("ghibli_done"));
   } catch (err) {
@@ -760,7 +750,7 @@ async function generateImageAction() {
   if (!prompt) return;
   toast(t("working"), 60000);
   try {
-    const src = await AI.generateImage(prompt, apiKey(), provider());
+    const src = await AI.generateImage(prompt, apiKey());
     await insertImageSrc(src, "AI image");
     toast(t("done"));
   } catch (err) {
@@ -773,7 +763,7 @@ async function translateSelected() {
   if (!l) return toast(t("need_text"));
   toast(t("working"), 30000);
   try {
-    const { ku, ar } = await AI.translate(l.text, apiKey(), provider());
+    const { ku, ar } = await AI.translate(l.text, apiKey());
     doc.snapshot();
     const gap = Math.round(l.size * 0.5);
     const base = { type: "text", x: l.x, w: l.w, size: l.size, weight: l.weight, color: l.color, font: "Vazirmatn", align: "center", name: "" };
@@ -977,17 +967,12 @@ function wire() {
   $("#aiGenerate").onclick = generateImageAction;
   $("#aiTranslate").onclick = translateSelected;
 
-  // Keys are saved per provider. The old OpenAI key name is migrated once.
-  if (!localStorage.getItem("studio_key_openai") && localStorage.getItem("studio_openai_key")) {
-    localStorage.setItem("studio_key_openai", localStorage.getItem("studio_openai_key"));
-  }
-  $("#provider").value = localStorage.getItem("studio_provider") || "openai";
-  loadKeyFor(provider());
-  $("#provider").addEventListener("change", (e) => {
-    localStorage.setItem("studio_provider", e.target.value);
-    loadKeyFor(provider());
-  });
-  $("#apiKey").addEventListener("input", (e) => localStorage.setItem(`studio_key_${provider()}`, e.target.value.trim()));
+  // The Gemini key is saved in this browser. Keys from older versions are removed.
+  localStorage.removeItem("studio_openai_key");
+  localStorage.removeItem("studio_key_openai");
+  localStorage.removeItem("studio_provider");
+  $("#apiKey").value = localStorage.getItem("studio_key_gemini") || "";
+  $("#apiKey").addEventListener("input", (e) => localStorage.setItem("studio_key_gemini", e.target.value.trim()));
 
   $("#lang").addEventListener("change", (e) => applyLang(e.target.value));
 }

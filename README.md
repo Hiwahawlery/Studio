@@ -11,7 +11,7 @@ A browser-based photo and design editor, built from scratch.
 - **Text:** wrapping, alignment, outline, weight. Arabic and Kurdish (Sorani) text is detected and set right-to-left
 - **Undo / redo** with Ctrl+Z / Ctrl+Shift+Z
 - **Templates:** social post, poster, story
-- **AI:** background removal (runs in your browser), image generation, and English → Kurdish + Arabic translation (both need an OpenAI key)
+- **AI:** background removal (runs in your browser), image generation, and English → Kurdish + Arabic translation (all use your free Gemini API key)
 - **Interface languages:** English, Kurdish, Arabic (switches layout direction)
 - **Export:** PNG (transparent) or JPG at 1×, 2× or 3×
 - **Save / Open:** `.studio.json` project files that include the images
@@ -77,8 +77,8 @@ git push
 
 ## Notes
 
-- Your OpenAI key is saved only in your browser. Do not put it in the code or commit it.
+- Your Gemini key is saved only in your browser. Do not put it in the code or commit it.
 - Background removal uses `@imgly/background-removal`, loaded from jsDelivr.
-- AI models in `ai.js`: `gpt-image-1` (images), `gpt-4o-mini` (translation). Change them there if needed.
+- AI models in `ai.js`: `gemini-2.5-flash-image` (images) and `gemini-2.5-flash` (translation). Get a free key at https://aistudio.google.com/apikey.
 - Text rendering on canvas needs browser support for `roundRect` and `ctx.filter` (current Chrome, Edge, Firefox; Safari 17+ for filters).
 - Kurdish and Arabic interface text should be checked by a native speaker before release.
