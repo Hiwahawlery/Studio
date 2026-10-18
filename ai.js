@@ -28,7 +28,7 @@ async function generate(model, parts, generationConfig, key) {
     body: JSON.stringify({ contents: [{ parts }], generationConfig }),
   });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(friendly(j.error?.message, r.status));
+  if (!r.ok) throw new Error(friendly(j.error && j.error.message, r.status));
   return j;
 }
 
@@ -40,9 +40,14 @@ function friendly(message, status) {
   return message || `Gemini error (HTTP ${status})`;
 }
 
+function partsOf(j) {
+  const c = (j.candidates || [])[0];
+  return (c && c.content && c.content.parts) || [];
+}
+
 function imageFrom(j) {
-  const part = j.candidates?.[0]?.content?.parts?.find((p) => p.inlineData || p.inline_data);
-  const d = part?.inlineData || part?.inline_data;
+  const part = partsOf(j).find((p) => p.inlineData || p.inline_data);
+  const d = part && (part.inlineData || part.inline_data);
   if (!d) throw new Error("Gemini did not return an image. Try a different prompt.");
   return `data:${d.mimeType || d.mime_type || "image/png"};base64,${d.data}`;
 }
@@ -80,8 +85,9 @@ export async function translate(text, key) {
     { responseMimeType: "application/json" }, key);
   let out;
   try {
-    out = JSON.parse(j.candidates?.[0]?.content?.parts?.[0]?.text || "{}");
-  } catch {
+    const first = partsOf(j)[0];
+    out = JSON.parse((first && first.text) || "{}");
+  } catch (e) {
     out = {};
   }
   if (!out.ku || !out.ar) throw new Error("Gemini returned an unexpected translation. Try again.");

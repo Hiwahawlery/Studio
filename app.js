@@ -20,7 +20,7 @@ function reportError(msg) {
   console.error(msg);
 }
 window.addEventListener("error", (e) => reportError(e.message));
-window.addEventListener("unhandledrejection", (e) => reportError(e.reason?.message || String(e.reason)));
+window.addEventListener("unhandledrejection", (e) => reportError((e.reason && e.reason.message) || String(e.reason)));
 
 const stage = $("#stage");
 const ctx = stage.getContext("2d");
@@ -34,7 +34,7 @@ let guides = {};          // snap guides shown while moving
 let lang = localStorage.getItem("studio_lang") || "ku";   // Kurdish by default
 let theme = localStorage.getItem("studio_theme") || "dark";
 let orient = localStorage.getItem("studio_orient") || "portrait";
-const t = (k) => T[lang]?.[k] || T.en[k] || k;
+const t = (k) => (T[lang] && T[lang][k]) || T.en[k] || k;
 
 // ---------- presets ----------
 const FILTERS = {
@@ -163,12 +163,12 @@ function redraw() {
   ctx.restore();
 
   drawOverlay(ctx, doc, view.zoom, {
-    guideX: guides.gx ?? null,
-    guideY: guides.gy ?? null,
+    guideX: guides.gx != null ? guides.gx : null,
+    guideY: guides.gy != null ? guides.gy : null,
     handles: tool === "select",
   });
 
-  if (drag?.mode === "draw" && drag.points.length) {
+  if (drag && drag.mode === "draw" && drag.points.length) {
     ctx.save();
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -179,7 +179,7 @@ function redraw() {
     ctx.stroke();
     ctx.restore();
   }
-  if (drag?.mode === "marquee") {
+  if (drag && drag.mode === "marquee") {
     const r = rectFrom(drag.start, drag.cur);
     ctx.save();
     ctx.fillStyle = "rgba(124,92,255,.12)";
@@ -387,9 +387,10 @@ stage.addEventListener("pointerup", (e) => {
 
 stage.addEventListener("dblclick", (e) => {
   const l = topLayerAt(pointerInfo(e));
-  if (l?.type === "text") {
+  if (l && l.type === "text") {
     doc.setSelection([l.id]);
-    $("#props textarea")?.focus();
+    const ta = $("#props textarea");
+    if (ta) ta.focus();
   }
 });
 
@@ -437,7 +438,7 @@ function finalizeStroke(d) {
 const TOOL_KEYS = { v: "select", t: "text", r: "rect", o: "ellipse", b: "brush", e: "eraser", h: "hand" };
 
 window.addEventListener("keydown", (e) => {
-  if (e.target.closest?.("input, textarea, select")) return;
+  if (e.target.closest && e.target.closest("input, textarea, select")) return;
   const k = e.key.toLowerCase();
   const mod = e.ctrlKey || e.metaKey;
 
@@ -477,13 +478,13 @@ window.addEventListener("keyup", (e) => { if (e.key === " ") spaceDown = false; 
 
 // Paste an image from the clipboard, or drop image files onto the canvas.
 window.addEventListener("paste", (e) => {
-  const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/"));
+  const item = [...((e.clipboardData && e.clipboardData.items) || [])].find((i) => i.type.startsWith("image/"));
   if (item) insertImageFile(item.getAsFile());
 });
 stage.addEventListener("dragover", (e) => e.preventDefault());
 stage.addEventListener("drop", (e) => {
   e.preventDefault();
-  const f = [...(e.dataTransfer?.files || [])].find((f) => f.type.startsWith("image/"));
+  const f = [...((e.dataTransfer && e.dataTransfer.files) || [])].find((f) => f.type.startsWith("image/"));
   if (f) insertImageFile(f);
 });
 
@@ -505,7 +506,8 @@ function renderLayers() {
       <button class="mini" data-a="lock" title="Lock">${l.locked ? "🔒" : "🔓"}</button>`;
 
     row.addEventListener("click", (e) => {
-      const a = e.target.closest("[data-a]")?.dataset.a;
+      const hit = e.target.closest("[data-a]");
+      const a = hit ? hit.dataset.a : undefined;
       if (a === "vis" || a === "lock") {
         doc.snapshot();
         doc.update(l.id, a === "vis" ? { visible: !l.visible } : { locked: !l.locked });
@@ -557,7 +559,7 @@ function renderProps() {
 
   const l = sel[0];
   const num = (k, label, extra = "") =>
-    `<label>${t(label)}<input type="number" data-k="${k}" value="${Number(l[k] ?? 0).toFixed(k === "opacity" ? 2 : 0)}" ${extra}></label>`;
+    `<label>${t(label)}<input type="number" data-k="${k}" value="${Number(l[k] != null ? l[k] : 0).toFixed(k === "opacity" ? 2 : 0)}" ${extra}></label>`;
   const color = (k, label) => `<label>${t(label)}<input type="color" data-k="${k}" value="${l[k] || "#000000"}"></label>`;
   const select = (k, label, opts) =>
     `<label>${t(label)}<select data-k="${k}">${opts.map((o) => `<option value="${o.v}" ${o.v === l[k] ? "selected" : ""}>${o.t}</option>`).join("")}</select></label>`;

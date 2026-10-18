@@ -51,8 +51,8 @@ export class Doc {
   // ----- assets (image data lives here, layers only hold the id) -----
   newAssetId() { return "a" + Math.random().toString(36).slice(2, 10); }
   addAsset(id, src, img) { this.assets.set(id, { src, img }); }
-  assetImg(id) { return this.assets.get(id)?.img; }
-  assetSrc(id) { return this.assets.get(id)?.src; }
+  assetImg(id) { const a = this.assets.get(id); return a ? a.img : undefined; }
+  assetSrc(id) { const a = this.assets.get(id); return a ? a.src : undefined; }
 
   // ----- history -----
   _state() { return JSON.stringify({ w: this.w, h: this.h, bg: this.bg, layers: this.layers }); }
@@ -150,8 +150,8 @@ export class Doc {
   reset({ w, h, bg, layers }) {
     this.snapshot();
     this.w = w; this.h = h; this.bg = bg;
-    this.nextId = Math.max(0, ...layers.map((l) => l.id ?? 0)) + 1;
-    this.layers = layers.map((l) => ({ ...makeLayer(l), id: l.id ?? this.nextId++ }));
+    this.nextId = Math.max(0, ...layers.map((l) => (l.id != null ? l.id : 0))) + 1;
+    this.layers = layers.map((l) => ({ ...makeLayer(l), id: l.id != null ? l.id : this.nextId++ }));
     this.selection = [];
     this.emit();
   }
