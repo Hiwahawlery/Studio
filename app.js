@@ -10,6 +10,7 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 3000);
   };
   // Self-heal: if an older index.html has no tab bar, create it so the app never crashes
+  document.querySelectorAll('nav.tabs').forEach((n, i) => { if (i) n.remove(); }); // never more than one tab bar
   let tabsBox = $('tabs');
   if (!tabsBox) { tabsBox = document.createElement('nav'); tabsBox.id = 'tabs'; tabsBox.className = 'tabs'; document.querySelector('header.top').after(tabsBox); }
   $('fileOpen').multiple = true;

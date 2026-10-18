@@ -3,7 +3,7 @@
 :root[data-theme=dark]{--bg:#14161d;--panel:#1d2030;--ink:#eef0f7;--muted:#9ba3b8;--line:#2e3347;--stage:#0f1117}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
-body{display:grid;grid-template-rows:48px 36px 1fr 28px;background:var(--bg);color:var(--ink);font:14px/1.4 Inter,"Noto Sans Arabic","Noto Sans SC",system-ui,sans-serif}
+body{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);color:var(--ink);font:14px/1.4 Inter,"Noto Sans Arabic","Noto Sans SC",system-ui,sans-serif}
 button,select,input,textarea{font:inherit;color:inherit}
 .top{display:flex;align-items:center;gap:8px;padding:0 10px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;white-space:nowrap}
 .brand{display:flex;align-items:center;gap:6px;margin-inline-end:6px}
@@ -45,4 +45,10 @@ h3{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 .tab .x:hover,.tabs .add:hover{background:var(--line);color:var(--ink)}
 .tabs .add{align-self:center;margin-inline-start:4px}
 
-.top{grid-row:1}.tabs{grid-row:2}.main{grid-row:3}.bottom{grid-row:4}
+
+/* Layout: fixed bars + flexible middle. Does not depend on grid row counting. */
+.top{flex:none;height:48px}
+.tabs{flex:none;height:36px}
+.main{flex:1 1 0;min-height:0}
+.bottom{flex:none;height:28px}
+@media (max-width:900px){body{overflow:auto}.main{flex:none;min-height:0}}

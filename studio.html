@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Studio · Hewa KHoshnaw</title>
+<link rel="icon" href="logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Noto+Sans+Arabic:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=swap">
+<style>
+:root{--bg:#eceef4;--panel:#fff;--ink:#1c2230;--muted:#6b7385;--line:#dde1ea;--acc:#7c5cff;--stage:#dfe3ec}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#14161d;--panel:#1d2030;--ink:#eef0f7;--muted:#9ba3b8;--line:#2e3347;--stage:#0f1117}}
+:root[data-theme=dark]{--bg:#14161d;--panel:#1d2030;--ink:#eef0f7;--muted:#9ba3b8;--line:#2e3347;--stage:#0f1117}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{display:flex;flex-direction:column;overflow:hidden;background:var(--bg);color:var(--ink);font:14px/1.4 Inter,"Noto Sans Arabic","Noto Sans SC",system-ui,sans-serif}
+button,select,input,textarea{font:inherit;color:inherit}
+.top{display:flex;align-items:center;gap:8px;padding:0 10px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;white-space:nowrap}
+.brand{display:flex;align-items:center;gap:6px;margin-inline-end:6px}
+.brand img{width:26px;height:26px}
+.main{display:grid;grid-template-columns:200px 1fr 300px;min-height:0}
+.left,.right{background:var(--panel);overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+.left{border-inline-end:1px solid var(--line)}
+.right{border-inline-start:1px solid var(--line)}
+.stage{position:relative;overflow:auto;display:flex;align-items:center;justify-content:center;background:var(--stage);padding:28px}
+canvas{box-shadow:0 10px 40px rgba(0,0,0,.3);background:#fff;touch-action:none}
+.zoom{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px}
+.bottom{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:0 12px;background:var(--panel);border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+.btn,.tool{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px;cursor:pointer;text-align:start}
+.btn:hover,.tool:hover{border-color:var(--acc)}
+.btn:disabled{opacity:.5;cursor:default}
+.primary,.tool.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.col{display:flex;flex-direction:column;gap:8px}
+label{display:flex;flex-direction:column;gap:4px;color:var(--muted);font-size:12px}
+label.row{flex-direction:row}
+input,select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px;width:100%}
+input[type=color]{height:34px;padding:2px}
+input[type=checkbox]{width:auto}
+h3{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:6px 0 0}
+.lay{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+.lay.on{border-color:var(--acc);background:var(--bg)}
+.lay span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lay input{width:auto}
+.muted{color:var(--muted);margin:0}
+#aiMsg{white-space:pre-wrap;font-size:12px;min-height:1em}
+@media (max-width:900px){.main{grid-template-columns:1fr}.left,.right{max-height:36vh}.stage{min-height:60vh}}
+
+.tabs{display:flex;align-items:flex-end;gap:2px;padding:4px 10px 0;background:var(--bg);border-bottom:1px solid var(--line);overflow-x:auto;white-space:nowrap}
+.tab{display:flex;align-items:center;gap:6px;max-width:220px;height:100%;padding:0 6px 0 12px;background:var(--panel);opacity:.65;border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;cursor:pointer;user-select:none}
+.tab:hover{opacity:.9}
+.tab.on{opacity:1;border-color:var(--acc);box-shadow:inset 0 2px 0 var(--acc)}
+.tab span{overflow:hidden;text-overflow:ellipsis}
+.tab .x,.tabs .add{border:0;background:none;cursor:pointer;padding:0 6px;border-radius:6px;color:var(--muted);font-size:16px;line-height:22px}
+.tab .x:hover,.tabs .add:hover{background:var(--line);color:var(--ink)}
+.tabs .add{align-self:center;margin-inline-start:4px}
+
+
+/* Layout: fixed bars + flexible middle. Does not depend on grid row counting. */
+.top{flex:none;height:48px}
+.tabs{flex:none;height:36px}
+.main{flex:1 1 0;min-height:0}
+.bottom{flex:none;height:28px}
+@media (max-width:900px){body{overflow:auto}.main{flex:none;min-height:0}}
+
+</style>
+</head>
+<body>
+<script>
+addEventListener('error', e => { let b = document.getElementById('errbar');
+  if (!b) { b = document.createElement('div'); b.id = 'errbar'; b.style.cssText = 'position:fixed;left:0;right:0;bottom:30px;z-index:99999;background:#b00020;color:#fff;font:13px/1.4 monospace;padding:8px 12px;white-space:pre-wrap'; document.body.append(b); }
+  b.textContent += 'Error: ' + e.message + ' (' + (e.filename || '').split('/').pop() + ':' + e.lineno + ')\n'; });
+</script>
+<header class="top">
+  <div class="brand"><img src="logo.svg" alt=""><b>Studio</b></div>
+  <select id="tpl" title="Templates"><option value="">Templates</option><option value="headline">Headline card</option></select>
+  <button class="btn" id="undo" data-i18n="undo">Undo</button>
+  <button class="btn" id="redo" data-i18n="redo">Redo</button>
+  <button class="btn" id="open" data-i18n="open">Open</button>
+  <button class="btn" id="save" data-i18n="save">Save</button>
+  <select id="fmt" title="Format"><option value="png">PNG</option><option value="jpeg">JPG</option></select>
+  <select id="scale" title="Scale"><option value="1">1×</option><option value="2" selected>2×</option><option value="3">3×</option></select>
+  <button class="btn primary" id="export" data-i18n="export">Export</button>
+  <button class="btn" id="theme" title="Dark mode">☾</button>
+  <select id="lang" title="Language"><option value="en">English</option><option value="ku">کوردی</option><option value="ar">العربية</option><option value="zh">中文</option></select>
+</header>
+<nav class="tabs" id="tabs"></nav>
+
+<div class="main">
+  <aside class="left">
+    <button class="tool on" data-tool="select" data-i18n="select">Select</button>
+    <button class="tool" data-tool="text" data-i18n="text">Text</button>
+    <button class="tool" data-tool="rect" data-i18n="rect">Rectangle</button>
+    <button class="tool" data-tool="ellipse" data-i18n="ellipse">Ellipse</button>
+    <button class="tool" data-tool="image" data-i18n="image">Add image</button>
+    <label><span data-i18n="page">Page size</span><select id="preset"></select></label>
+    <label><span data-i18n="orient">Orientation</span><select id="orient"><option value="p">Portrait</option><option value="l">Landscape</option></select></label>
+    <label><span data-i18n="bg">Background</span><input id="bg" type="color" value="#ffffff"></label>
+    <label class="row"><input id="transp" type="checkbox"> <span data-i18n="transparent">Transparent</span></label>
+  </aside>
+
+  <main class="stage">
+    <canvas id="c"></canvas>
+    <div class="zoom"><button class="btn" id="zm">−</button><span id="zv">50%</span><button class="btn" id="zp">+</button><button class="btn" id="fit">Fit</button></div>
+  </main>
+
+  <aside class="right">
+    <h3 data-i18n="layers">Layers</h3>
+    <div class="row"><button class="btn" id="up" title="Up">↑</button><button class="btn" id="down" title="Down">↓</button><button class="btn" id="dup" data-i18n="dup">Duplicate</button><button class="btn" id="del" data-i18n="del">Delete</button></div>
+    <div id="layers" class="col"></div>
+
+    <h3 data-i18n="props">Properties</h3>
+    <div id="props" class="col"><p class="muted">Select a layer to edit it.</p></div>
+
+    <h3 data-i18n="ai">AI tools</h3>
+    <div class="col">
+      <button class="btn" id="ghibli" data-i18n="ghibli">Ghibli style (AI)</button>
+      <textarea id="prompt" rows="2" data-i18n-ph="prompt" placeholder="Describe an image"></textarea>
+      <button class="btn" id="generate" data-i18n="generate">Generate image</button>
+      <button class="btn" id="translate" data-i18n="translate">Translate to Kurdish + Arabic</button>
+      <label><span data-i18n="key">Gemini API key (free)</span><input id="key" type="password" placeholder="AIza..."></label>
+      <small data-i18n="keyNote">Free key from aistudio.google.com. Stored only in this browser.</small>
+      <p id="aiMsg" class="muted"></p>
+    </div>
+  </aside>
+</div>
+
+<footer class="bottom"><span id="pos">x 0 · y 0</span><span id="size"></span><span>Made by Hewa KHoshnaw · build 4</span></footer>
+
+<input type="file" id="fileImg" accept="image/*" hidden>
+<input type="file" id="fileOpen" accept=".json,application/json" multiple hidden>
+
+<script>
+// UI strings: English, Kurdish (Sorani), Arabic, Chinese. Add a language by copying the "en" block.
+const I18N = {
+  en: { select: 'Select', text: 'Text', rect: 'Rectangle', ellipse: 'Ellipse', image: 'Add image', undo: 'Undo', redo: 'Redo', open: 'Open', save: 'Save', export: 'Export', layers: 'Layers', props: 'Properties', ai: 'AI tools', ghibli: 'Ghibli style (AI)', generate: 'Generate image', translate: 'Translate to Kurdish + Arabic', key: 'Gemini API key (free)', keyNote: 'Free key from aistudio.google.com. Stored only in this browser.', page: 'Page size', orient: 'Orientation', bg: 'Background', transparent: 'Transparent', dup: 'Duplicate', del: 'Delete', prompt: 'Describe an image', closeConfirm: 'Close this tab? Unsaved changes will be lost.', badFile: 'This file is not a valid Studio project.' },
+  ku: { select: 'هەڵبژاردن', text: 'دەق', rect: 'چوارگۆشە', ellipse: 'بازنە', image: 'زیادکردنی وێنە', undo: 'گەڕانەوە', redo: 'دووبارە', open: 'کردنەوە', save: 'پاشەکەوت', export: 'هەناردە', layers: 'چینەکان', props: 'خاسیەتەکان', ai: 'ئامرازەکانی AI', ghibli: 'ستایلی Ghibli (AI)', generate: 'دروستکردنی وێنە', translate: 'وەرگێڕان بۆ کوردی + عەرەبی', key: 'کلیلی Gemini API (بەخۆڕایی)', keyNote: 'کلیلی بەخۆڕایی لە aistudio.google.com. تەنها لەم وێبگەڕەدا پاشەکەوت دەکرێت.', page: 'قەبارەی پەڕە', orient: 'ئاراستە', bg: 'پاشبنەما', transparent: 'ڕوون', dup: 'دووانکردن', del: 'سڕینەوە', prompt: 'وێنەیەک وەسف بکە', closeConfirm: 'ئەم تابە دابخرێت؟ گۆڕانکارییە پاشەکەوتنەکراوەکان لەدەست دەچن.', badFile: 'ئەم فایلە پڕۆژەیەکی Studio ی دروست نییە.' },
+  ar: { select: 'تحديد', text: 'نص', rect: 'مستطيل', ellipse: 'بيضاوي', image: 'إضافة صورة', undo: 'تراجع', redo: 'إعادة', open: 'فتح', save: 'حفظ', export: 'تصدير', layers: 'الطبقات', props: 'الخصائص', ai: 'أدوات الذكاء الاصطناعي', ghibli: 'نمط Ghibli (ذكاء اصطناعي)', generate: 'إنشاء صورة', translate: 'ترجمة إلى الكردية + العربية', key: 'مفتاح Gemini API (مجاني)', keyNote: 'مفتاح مجاني من aistudio.google.com. يُحفظ في هذا المتصفح فقط.', page: 'حجم الصفحة', orient: 'الاتجاه', bg: 'الخلفية', transparent: 'شفاف', dup: 'تكرار', del: 'حذف', prompt: 'صِف صورة', closeConfirm: 'إغلاق هذا التبويب؟ ستفقد التغييرات غير المحفوظة.', badFile: 'هذا الملف ليس مشروع Studio صالحًا.' },
+  zh: { select: '选择', text: '文字', rect: '矩形', ellipse: '椭圆', image: '添加图片', undo: '撤销', redo: '重做', open: '打开', save: '保存', export: '导出', layers: '图层', props: '属性', ai: 'AI 工具', ghibli: '吉卜力风格（AI）', generate: '生成图片', translate: '翻译成库尔德语和阿拉伯语', key: 'Gemini API 密钥（免费）', keyNote: '免费密钥请在 aistudio.google.com 获取，仅保存在此浏览器中。', page: '页面尺寸', orient: '方向', bg: '背景', transparent: '透明', dup: '复制', del: '删除', prompt: '描述一张图片', closeConfirm: '关闭此标签页？未保存的更改将丢失。', badFile: '此文件不是有效的 Studio 项目。' }
+};
+
+</script>
+<script>
+// Page sizes and starter templates. Template positions and sizes are fractions of the page (0 to 1).
+const PRESETS = {
+  instagram: { label: 'Instagram post', w: 1080, h: 1080 },
+  story: { label: 'Story / Reel', w: 1080, h: 1920 },
+  youtube: { label: 'YouTube thumbnail', w: 1280, h: 720 },
+  facebook: { label: 'Facebook cover', w: 1640, h: 624 },
+  a4: { label: 'A4 print (300 dpi)', w: 2480, h: 3508 }
+};
+const TEMPLATES = {
+  headline: [
+    { type: 'rect', x: 0.05, y: 0.05, w: 0.9, h: 0.9, r: 0.05, fill: '#211d3d' },
+    { type: 'text', x: 0.1, y: 0.36, w: 0.8, text: 'Big headline', size: 0.09, weight: 700, font: 'Inter', align: 'center', fill: '#ffffff' },
+    { type: 'text', x: 0.1, y: 0.6, w: 0.8, text: 'Supporting line', size: 0.04, weight: 400, font: 'Inter', align: 'center', fill: '#c9c6e8' }
+  ]
+};
+
+</script>
+<script>
+// Fonts for Latin, Arabic-script text (Kurdish, Arabic, Persian) and Chinese. Loaded from Google Fonts in index.html.
+const FONTS = {
+  list: ['Inter', 'Noto Sans Arabic', 'Noto Sans SC'],
+  // Each name falls back to system fonts that cover Arabic script and Chinese.
+  stack: name => `"${name}", "Segoe UI", Tahoma, Arial, "Noto Sans Arabic", "Noto Sans SC", "Microsoft YaHei", sans-serif`,
+  pending: new Set(),
+  // Ask the browser to load a font, then call onReady so the canvas redraws with it.
+  ensure(name, weight, onReady) {
+    const probe = `${weight} 16px "${name}"`;
+    if (!document.fonts || document.fonts.check(probe) || this.pending.has(probe)) return;
+    this.pending.add(probe);
+    document.fonts.load(probe).then(() => { this.pending.delete(probe); onReady(); }, () => this.pending.delete(probe));
+  }
+};
+
+</script>
+<script>
+// Studio engine: document model, layers, drawing, undo/redo, tabs, export. No DOM controls here.
+const Engine = (() => {
+  const doc = { w: 1080, h: 1080, bg: '#ffffff', transparent: false, layers: [] };
+  const IMG = new Map(); // layer id -> <img>. Images stay out of undo snapshots.
+  const canvas = document.getElementById('c');
+  const g = canvas.getContext('2d');
+  const meas = document.createElement('canvas').getContext('2d');
+  const listeners = [];
+  let seq = 1, zoom = 0.5, selId = null, past = [], future = [], drag = null;
+
+  // Tabs: the live document above belongs to tabs[cur]. Other tabs keep their state in .st
+  const tabs = [{ id: 1, name: 'Untitled 1', dirty: false, st: null }];
+  let cur = 0, tabSeq = 2, untitled = 2;
+
+  const snap = () => JSON.stringify({ w: doc.w, h: doc.h, bg: doc.bg, transparent: doc.transparent, layers: doc.layers });
+  const get = id => doc.layers.find(l => l.id === id) || null;
+  const fontOf = L => `${L.italic ? 'italic ' : ''}${L.weight || 400} ${L.size}px ${FONTS.stack(L.font || 'Inter')}`;
+  const loadImg = src => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
+  const markDirty = () => { tabs[cur].dirty = true; };
+
+  function changed() { render(); listeners.forEach(f => f()); }
+  function checkpoint() { markDirty(); past.push(snap()); if (past.length > 200) past.shift(); future = []; }
+  function restore(s) { markDirty(); Object.assign(doc, JSON.parse(s)); if (!get(selId)) selId = null; changed(); }
+  const undo = () => { if (past.length) { future.push(snap()); restore(past.pop()); } };
+  const redo = () => { if (future.length) { past.push(snap()); restore(future.pop()); } };
+
+  // ---------- Tabs ----------
+  function stash() { // save the live document into the current tab
+    tabs[cur].st = { w: doc.w, h: doc.h, bg: doc.bg, transparent: doc.transparent, layers: doc.layers, img: new Map(IMG), past, future, selId, zoom };
+  }
+  function activate(i) { // make tab i the live document
+    cur = i; const s = tabs[i].st;
+    drag = null;
+    Object.assign(doc, { w: s.w, h: s.h, bg: s.bg, transparent: s.transparent, layers: s.layers });
+    IMG.clear(); s.img.forEach((im, k) => IMG.set(k, im));
+    past = s.past; future = s.future; selId = s.selId; zoom = s.zoom;
+  }
+  function addTab(name, state, imgs, reuse) {
+    const st = { ...state, img: imgs || new Map(), past: [], future: [], selId: null, zoom: 0.5 };
+    name = name || 'Untitled ' + untitled++;
+    if (reuse) Object.assign(tabs[cur], { name, dirty: false, st });
+    else { stash(); tabs.push({ id: tabSeq++, name, dirty: false, st }); cur = tabs.length - 1; }
+    activate(cur); changed();
+  }
+  const newTab = () => addTab(null, { w: 1080, h: 1080, bg: '#ffffff', transparent: false, layers: [] });
+  function switchTo(i) {
+    if (i === cur || i < 0 || i >= tabs.length) return;
+    stash(); activate(i); changed();
+  }
+  function switchToId(id) { // false if that tab was closed meanwhile
+    const i = tabs.findIndex(t => t.id === id);
+    if (i < 0) return false;
+    switchTo(i); return true;
+  }
+  function closeTab(i) {
+    if (i < 0 || i >= tabs.length) return;
+    if (tabs.length === 1) { newTab(); tabs.splice(0, 1); cur = 0; changed(); return; }
+    if (i === cur) { tabs.splice(i, 1); activate(Math.min(i, tabs.length - 1)); }
+    else { tabs.splice(i, 1); if (i < cur) cur--; }
+    changed();
+  }
+  function renameTab(i, name) { if (tabs[i]) { tabs[i].name = name; changed(); } }
+  function markSaved() { tabs[cur].dirty = false; changed(); }
+
+  // Open a saved project (text of a .studio.json file). Uses the current tab if it is still blank, otherwise a new tab.
+  async function openProject(text, name) {
+    let o;
+    try { o = JSON.parse(text); } catch { throw new Error('Not valid JSON'); }
+    if (!o || !Array.isArray(o.layers) || !(o.w > 0) || !(o.h > 0)) throw new Error('Not a Studio project');
+    const imgs = new Map();
+    await Promise.all(Object.entries(o.images || {}).map(([id, src]) => loadImg(src).then(im => imgs.set(id, im)).catch(() => {})));
+    for (const L of o.layers) { const n = parseInt(String(L.id).replace(/\D/g, ''), 10); if (n >= seq) seq = n + 1; } // keep new ids unique
+    for (const L of o.layers) if (!L.id) L.id = 'L' + seq++;
+    const pristine = !tabs[cur].dirty && !doc.layers.length && !past.length;
+    addTab(name, { w: +o.w, h: +o.h, bg: o.bg || '#ffffff', transparent: !!o.transparent, layers: o.layers }, imgs, pristine);
+  }
+
+  // Wrap text to the box width. Words wrap at spaces; long runs (Chinese has no spaces) break by character.
+  function lines(L) {
+    meas.font = fontOf(L);
+    const out = [], W = L.w;
+    const fit = t => {
+      const o = []; let s = t;
+      while (s.length > 1 && meas.measureText(s).width > W) {
+        let k = s.length - 1;
+        while (k > 1 && meas.measureText(s.slice(0, k)).width > W) k--;
+        o.push(s.slice(0, k)); s = s.slice(k);
+      }
+      o.push(s); return o;
+    };
+    for (const para of String(L.text || '').split('\n')) {
+      let cur = '';
+      for (const word of para.split(' ')) {
+        const t = cur ? cur + ' ' + word : word;
+        if (!cur || meas.measureText(t).width <= W) { cur = t; continue; }
+        out.push(...fit(cur)); cur = word;
+      }
+      out.push(...fit(cur));
+    }
+    return out;
+  }
+  const boxH = L => (L.type === 'text' ? lines(L).length * L.size * 1.25 : L.h);
+
+  function drawText(c, L) {
+    FONTS.ensure(L.font || 'Inter', L.weight || 400, changed);
+    const ls = lines(L), lh = L.size * 1.25;
+    c.font = fontOf(L); c.fillStyle = L.fill; c.textBaseline = 'top';
+    ls.forEach((t, i) => {
+      // Each line gets its own direction, so Kurdish/Arabic run right-to-left and English/numbers/Chinese left-to-right.
+      const rtl = L.dir !== 'ltr' && /[\u0590-\u08FF]/.test(t);
+      c.direction = rtl ? 'rtl' : 'ltr'; c.textAlign = 'left';
+      const tw = c.measureText(t).width, a = L.align || (rtl ? 'right' : 'left');
+      const x = a === 'center' ? L.x + (L.w - tw) / 2 : a === 'right' ? L.x + L.w - tw : L.x;
+      c.fillText(t, x, L.y + i * lh);
+    });
+  }
+  function drawLayer(c, L) {
+    c.save(); c.globalAlpha = L.opacity ?? 1;
+    if (L.type === 'rect') { c.fillStyle = L.fill; c.beginPath(); c.roundRect(L.x, L.y, L.w, L.h, L.r || 0); c.fill(); }
+    else if (L.type === 'ellipse') { c.fillStyle = L.fill; c.beginPath(); c.ellipse(L.x + L.w / 2, L.y + L.h / 2, L.w / 2, L.h / 2, 0, 0, Math.PI * 2); c.fill(); }
+    else if (L.type === 'image') { const im = IMG.get(L.id); if (im) c.drawImage(im, L.x, L.y, L.w, L.h); }
+    else drawText(c, L);
+    c.restore();
+  }
+  function render() {
+    const z = zoom * (window.devicePixelRatio || 1);
+    canvas.width = Math.round(doc.w * z); canvas.height = Math.round(doc.h * z);
+    canvas.style.width = doc.w * zoom + 'px'; canvas.style.height = doc.h * zoom + 'px';
+    g.setTransform(z, 0, 0, z, 0, 0); g.clearRect(0, 0, doc.w, doc.h);
+    if (!doc.transparent) { g.fillStyle = doc.bg; g.fillRect(0, 0, doc.w, doc.h); }
+    for (const L of doc.layers) if (L.visible !== false) drawLayer(g, L);
+    const S = get(selId);
+    if (S) { g.save(); g.setLineDash([6 / zoom, 4 / zoom]); g.lineWidth = 2 / zoom; g.strokeStyle = '#7c5cff'; g.strokeRect(S.x, S.y, S.w, boxH(S)); g.restore(); }
+  }
+
+  function hit(x, y) {
+    for (let i = doc.layers.length - 1; i >= 0; i--) {
+      const L = doc.layers[i];
+      if (L.visible !== false && x >= L.x && x <= L.x + L.w && y >= L.y && y <= L.y + boxH(L)) return L;
+    }
+    return null;
+  }
+  function add(type, p = {}) {
+    checkpoint();
+    const text = type === 'text';
+    const L = { id: 'L' + seq++, type, visible: true, x: doc.w * 0.2, y: doc.h * 0.3, w: doc.w * 0.6, h: doc.h * 0.2, fill: text ? '#1c2230' : '#7c5cff',
+      ...(text ? { text: 'Text', size: Math.round(doc.h * 0.06), weight: 700, font: 'Inter', align: 'left' } : {}), ...p };
+    doc.layers.push(L); selId = L.id; changed(); return L;
+  }
+  function remove(id) { checkpoint(); doc.layers = doc.layers.filter(l => l.id !== id); if (selId === id) selId = null; changed(); }
+  function move(id, dir) { // +1 moves a layer toward the top of the stack
+    const i = doc.layers.findIndex(l => l.id === id), j = i + dir;
+    if (i < 0 || j < 0 || j >= doc.layers.length) return;
+    checkpoint(); [doc.layers[i], doc.layers[j]] = [doc.layers[j], doc.layers[i]]; changed();
+  }
+  function duplicate(id) {
+    const L = get(id); if (!L) return;
+    checkpoint();
+    const C = { ...L, id: 'L' + seq++, x: L.x + 40, y: L.y + 40 };
+    if (IMG.has(L.id)) IMG.set(C.id, IMG.get(L.id));
+    doc.layers.splice(doc.layers.indexOf(L) + 1, 0, C); selId = C.id; changed();
+  }
+  function update(id, p) { const L = get(id); if (!L) return; checkpoint(); Object.assign(L, p); changed(); }
+  async function addImage(src) {
+    const im = await loadImg(src);
+    const k = Math.min(1, doc.w * 0.7 / im.naturalWidth, doc.h * 0.7 / im.naturalHeight);
+    const w = Math.round(im.naturalWidth * k), h = Math.round(im.naturalHeight * k);
+    const L = add('image', { x: (doc.w - w) / 2, y: (doc.h - h) / 2, w, h });
+    IMG.set(L.id, im); changed(); return L;
+  }
+  function template(name) {
+    const T = TEMPLATES[name]; if (!T) return;
+    checkpoint();
+    const r = Math.min(doc.w, doc.h);
+    for (const t of T) {
+      const L = { id: 'L' + seq++, type: t.type, visible: true, x: t.x * doc.w, y: t.y * doc.h, w: t.w * doc.w, h: (t.h || 0) * doc.h, fill: t.fill, r: (t.r || 0) * r };
+      if (t.type === 'text') Object.assign(L, { text: t.text, size: Math.round(t.size * doc.h), weight: t.weight, font: t.font, align: t.align });
+      doc.layers.push(L);
+    }
+    changed();
+  }
+
+  const toDoc = e => { const r = canvas.getBoundingClientRect(); return [(e.clientX - r.left) / zoom, (e.clientY - r.top) / zoom]; };
+  canvas.addEventListener('pointerdown', e => {
+    const [x, y] = toDoc(e), L = hit(x, y);
+    selId = L ? L.id : null;
+    drag = L ? { id: L.id, dx: x - L.x, dy: y - L.y, before: snap(), moved: false } : null;
+    canvas.setPointerCapture(e.pointerId); changed();
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const [x, y] = toDoc(e), L = get(drag.id);
+    if (!L) { drag = null; return; }
+    if (!drag.moved) { markDirty(); past.push(drag.before); if (past.length > 200) past.shift(); future = []; drag.moved = true; }
+    L.x = Math.round(x - drag.dx); L.y = Math.round(y - drag.dy); changed();
+  });
+  const endDrag = () => { drag = null; };
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+
+  function exportCanvas(scale) {
+    const c = document.createElement('canvas');
+    c.width = Math.round(doc.w * scale); c.height = Math.round(doc.h * scale);
+    const x = c.getContext('2d'); x.scale(scale, scale);
+    if (!doc.transparent) { x.fillStyle = doc.bg; x.fillRect(0, 0, doc.w, doc.h); }
+    for (const L of doc.layers) if (L.visible !== false) drawLayer(x, L);
+    return c;
+  }
+  const project = () => JSON.stringify({ app: 'studio', v: 1, w: doc.w, h: doc.h, bg: doc.bg, transparent: doc.transparent, layers: doc.layers,
+    images: Object.fromEntries([...IMG].filter(([k]) => doc.layers.some(l => l.id === k)).map(([k, im]) => [k, im.src])) });
+
+  const setZoom = z => { zoom = Math.min(3, Math.max(0.1, z)); changed(); };
+  const fitTo = (sw, sh) => setZoom(Math.min((sw - 60) / doc.w, (sh - 60) / doc.h));
+  const select = id => { selId = id; changed(); };
+  const onChange = f => listeners.push(f);
+
+  changed();
+  return { doc, canvas, IMG, get, add, addImage, remove, move, duplicate, update, undo, redo, template, select, setZoom, fitTo, onChange, changed, checkpoint, toDoc, boxH, exportCanvas, project,
+    tabs, tabIndex: () => cur, tabId: () => tabs[cur].id, newTab, switchTo, switchToId, closeTab, renameTab, markSaved, openProject,
+    selected: () => selId, zoomNow: () => zoom };
+})();
+
+</script>
+<script>
+// Gemini calls. Get a free key at aistudio.google.com. The key is stored only in this browser (localStorage).
+const AI = (() => {
+  // Model names are tried in order; the next one is used only when a model does not exist (404).
+  const TEXT_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+  const IMAGE_MODELS = ['gemini-3.1-flash-image', 'gemini-2.5-flash-image'];
+  const KEY = 'studio_gemini_key';
+  const key = () => localStorage.getItem(KEY) || '';
+  const setKey = k => localStorage.setItem(KEY, k.trim());
+  const toBase64 = blob => new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.readAsDataURL(blob); });
+
+  async function call(models, parts, wantImage) {
+    if (!key()) throw new Error('Paste your free Gemini API key first.');
+    let last = 'Gemini request failed';
+    for (const m of models) {
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${encodeURIComponent(key())}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts }], generationConfig: wantImage ? { responseModalities: ['TEXT', 'IMAGE'] } : {} })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) return j.candidates?.[0]?.content?.parts || [];
+      last = j.error?.message || last;
+      if (r.status !== 404) break;
+    }
+    throw new Error(last);
+  }
+  function toImage(parts) {
+    const p = parts.find(x => x.inlineData);
+    if (!p) throw new Error('No image came back. Try a clearer description.');
+    return `data:${p.inlineData.mimeType};base64,${p.inlineData.data}`;
+  }
+
+  return {
+    key, setKey,
+    generate: prompt => call(IMAGE_MODELS, [{ text: prompt }], true).then(toImage),
+    edit: (blob, prompt) => toBase64(blob).then(data =>
+      call(IMAGE_MODELS, [{ text: prompt }, { inlineData: { mimeType: blob.type || 'image/png', data } }], true)).then(toImage),
+    translate: async text => {
+      const parts = await call(TEXT_MODELS, [{ text: 'Translate the text below. Reply with ONLY JSON like {"ku":"...","ar":"..."}. "ku" = Kurdish (Sorani) written in Arabic script. "ar" = Modern Standard Arabic.\n\n' + text }], false);
+      const m = parts.map(p => p.text || '').join('').match(/\{[\s\S]*\}/);
+      if (!m) throw new Error('Translation failed. Try again.');
+      return JSON.parse(m[0]);
+    }
+  };
+})();
+
+</script>
+<script>
+// Studio UI: tabs, toolbar, layers, properties, AI buttons, language and theme. Logic lives in engine.js and ai.js.
+(() => {
+  const $ = id => document.getElementById(id);
+  const E = Engine, D = E.doc, stage = document.querySelector('.stage');
+  let lang = 'en';
+  const t = k => (I18N[lang] || I18N.en)[k] || I18N.en[k];
+  const download = (blob, name) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  };
+  // Self-heal: if an older index.html has no tab bar, create it so the app never crashes
+  document.querySelectorAll('nav.tabs').forEach((n, i) => { if (i) n.remove(); }); // never more than one tab bar
+  let tabsBox = $('tabs');
+  if (!tabsBox) { tabsBox = document.createElement('nav'); tabsBox.id = 'tabs'; tabsBox.className = 'tabs'; document.querySelector('header.top').after(tabsBox); }
+  $('fileOpen').multiple = true;
+  const tabName = () => E.tabs[E.tabIndex()].name.replace(/[\\/:*?"<>|]/g, '_');
+  const fit = () => E.fitTo(stage.clientWidth, stage.clientHeight);
+
+  // Page size and orientation
+  Object.entries(PRESETS).forEach(([k, p]) => $('preset').add(new Option(`${p.label} · ${p.w}×${p.h}`, k)));
+  function applyPage() {
+    const p = PRESETS[$('preset').value] || { w: D.w, h: D.h }; // 'custom' (from an opened file) keeps its size
+    const big = Math.max(p.w, p.h), small = Math.min(p.w, p.h);
+    const portrait = $('orient').value === 'p';
+    D.w = portrait ? small : big; D.h = portrait ? big : small;
+    E.changed();
+  }
+  $('preset').onchange = () => { E.checkpoint(); applyPage(); };
+  $('orient').onchange = () => { E.checkpoint(); applyPage(); };
+  $('bg').onchange = e => { E.checkpoint(); D.bg = e.target.value; E.changed(); };
+  $('transp').onchange = e => { E.checkpoint(); D.transparent = e.target.checked; E.changed(); };
+  // Keep the page-size controls in sync with the active tab
+  function syncPage() {
+    const big = Math.max(D.w, D.h), small = Math.min(D.w, D.h);
+    const k = Object.keys(PRESETS).find(k => Math.max(PRESETS[k].w, PRESETS[k].h) === big && Math.min(PRESETS[k].w, PRESETS[k].h) === small);
+    const old = $('preset').querySelector('option[value=custom]'); if (old) old.remove();
+    if (k) $('preset').value = k;
+    else { $('preset').add(new Option(`Custom · ${D.w}×${D.h}`, 'custom')); $('preset').value = 'custom'; }
+    if (D.w !== D.h) $('orient').value = D.w > D.h ? 'l' : 'p';
+  }
+
+  // Tools: Text, Rectangle, Ellipse add a layer; Add image opens the file picker
+  const ADD = {
+    text: () => E.add('text', { x: D.w * 0.1, y: D.h * 0.4, w: D.w * 0.8 }),
+    rect: () => E.add('rect', { x: D.w * 0.25, y: D.h * 0.3, w: D.w * 0.5, h: D.h * 0.3, r: 0 }),
+    ellipse: () => E.add('ellipse', { x: D.w * 0.3, y: D.h * 0.3, w: D.w * 0.4, h: D.h * 0.4 }),
+    image: () => $('fileImg').click()
+  };
+  document.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => ADD[b.dataset.tool]?.());
+  $('fileImg').onchange = e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    const r = new FileReader(); r.onload = () => E.addImage(r.result); r.readAsDataURL(f);
+  };
+
+  // Tabs
+  let tabSig = '';
+  function closeTab(i) {
+    if (E.tabs[i].dirty && !confirm(t('closeConfirm'))) return;
+    E.closeTab(i);
+  }
+  function refreshTabs() {
+    const sig = E.tabs.map(x => x.id + ':' + x.name + ':' + x.dirty).join('|') + '#' + E.tabIndex();
+    if (sig === tabSig) return; // only rebuild when something visible changed
+    tabSig = sig;
+    const box = tabsBox; box.innerHTML = '';
+    E.tabs.forEach((tab, i) => {
+      const el = document.createElement('div');
+      el.className = 'tab' + (i === E.tabIndex() ? ' on' : '');
+      el.title = tab.name;
+      const n = document.createElement('span'); n.textContent = (tab.dirty ? '● ' : '') + tab.name;
+      const x = document.createElement('button'); x.className = 'x'; x.textContent = '×'; x.title = 'Close';
+      x.onclick = ev => { ev.stopPropagation(); closeTab(i); };
+      el.onclick = () => E.switchTo(i);
+      el.ondblclick = () => { const v = prompt('Rename', tab.name); if (v && v.trim()) E.renameTab(i, v.trim()); };
+      el.onauxclick = ev => { if (ev.button === 1) closeTab(i); };
+      el.append(n, x); box.append(el);
+    });
+    const add = document.createElement('button'); add.className = 'add'; add.textContent = '+'; add.title = 'New tab';
+    add.onclick = () => { E.newTab(); fit(); };
+    box.append(add);
+    box.querySelector('.tab.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+  addEventListener('beforeunload', e => { if (E.tabs.some(x => x.dirty)) { e.preventDefault(); e.returnValue = ''; } });
+
+  // Header: undo, redo, open, save, export, templates
+  $('undo').onclick = () => E.undo();
+  $('redo').onclick = () => E.redo();
+  $('tpl').onchange = e => { if (e.target.value) E.template(e.target.value); e.target.value = ''; };
+  $('open').onclick = () => $('fileOpen').click();
+  $('fileOpen').onchange = async e => {
+    const files = [...e.target.files]; e.target.value = ''; // copy first: clearing the input empties the live list
+    for (const f of files) {
+      try {
+        await E.openProject(await f.text(), f.name.replace(/(\.studio)?\.json$/i, ''));
+        fit();
+      } catch (err) { console.error(err); alert(`${f.name}: ${t('badFile')}`); }
+    }
+  };
+  $('save').onclick = () => { download(new Blob([E.project()], { type: 'application/json' }), tabName() + '.studio.json'); E.markSaved(); };
+  $('export').onclick = () => {
+    const jpg = $('fmt').value === 'jpeg', name = tabName();
+    E.exportCanvas(+$('scale').value).toBlob(b => download(b, name + (jpg ? '.jpg' : '.png')), jpg ? 'image/jpeg' : 'image/png', 0.95);
+  };
+
+  // Theme and language
+  $('theme').onclick = () => {
+    const d = document.documentElement;
+    const now = d.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    d.dataset.theme = now === 'dark' ? 'light' : 'dark';
+  };
+  function setLang(l) {
+    lang = I18N[l] ? l : 'en';
+    const dict = I18N[lang];
+    localStorage.setItem('studio_lang', lang);
+    document.documentElement.lang = lang;
+    document.documentElement.dir = lang === 'ku' || lang === 'ar' ? 'rtl' : 'ltr';
+    document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = dict[el.dataset.i18n] || I18N.en[el.dataset.i18n]; });
+    document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = dict[el.dataset.i18nPh] || ''; });
+    $('lang').value = lang;
+  }
+  $('lang').onchange = e => setLang(e.target.value);
+
+  // Zoom
+  $('zm').onclick = () => E.setZoom(E.zoomNow() / 1.25);
+  $('zp').onclick = () => E.setZoom(E.zoomNow() * 1.25);
+  $('fit').onclick = fit;
+
+  // Layer buttons act on the selected layer
+  $('up').onclick = () => { const s = E.selected(); if (s) E.move(s, 1); };
+  $('down').onclick = () => { const s = E.selected(); if (s) E.move(s, -1); };
+  $('dup').onclick = () => { const s = E.selected(); if (s) E.duplicate(s); };
+  $('del').onclick = () => { const s = E.selected(); if (s) E.remove(s); };
+
+  function refreshLayers() {
+    const box = $('layers'), sel = E.selected();
+    box.innerHTML = '';
+    [...E.doc.layers].reverse().forEach(L => {
+      const row = document.createElement('div');
+      row.className = 'lay' + (L.id === sel ? ' on' : '');
+      const eye = document.createElement('input');
+      eye.type = 'checkbox'; eye.checked = L.visible !== false; eye.title = 'Show / hide';
+      eye.onchange = () => E.update(L.id, { visible: eye.checked });
+      const name = document.createElement('span');
+      name.textContent = L.type === 'text' ? (L.text || 'Text').slice(0, 24) : L.type;
+      row.append(eye, name);
+      row.onclick = e => { if (e.target !== eye) E.select(L.id); };
+      box.append(row);
+    });
+  }
+
+  function refreshProps(L) {
+    const box = $('props');
+    box.innerHTML = '';
+    if (!L) { box.innerHTML = '<p class="muted">Select a layer to edit it.</p>'; return; }
+    const field = (label, el) => { const w = document.createElement('label'); w.append(label, el); box.append(w); };
+    const num = (v, fn) => { const el = document.createElement('input'); el.type = 'number'; el.value = Math.round(v || 0); el.onchange = () => fn(+el.value || 0); return el; };
+    const sel = (opts, v, fn) => { const el = document.createElement('select'); opts.forEach(([val, t]) => el.add(new Option(t, val))); el.value = v; el.onchange = () => fn(el.value); return el; };
+    const col = (v, fn) => { const el = document.createElement('input'); el.type = 'color'; el.value = v; el.onchange = () => fn(el.value); return el; };
+    const set = p => E.update(L.id, p);
+    field('X', num(L.x, v => set({ x: v })));
+    field('Y', num(L.y, v => set({ y: v })));
+    if (L.type === 'text') {
+      const ta = document.createElement('textarea'); ta.rows = 3; ta.value = L.text; ta.onchange = () => set({ text: ta.value });
+      field('Text', ta);
+      field('Font', sel(FONTS.list.map(n => [n, n]), L.font, v => set({ font: v })));
+      field('Size', num(L.size, v => set({ size: v })));
+      field('Weight', sel([[400, 'Regular'], [700, 'Bold']], L.weight, v => set({ weight: +v })));
+      field('Align', sel([['left', 'Left'], ['center', 'Center'], ['right', 'Right']], L.align || 'left', v => set({ align: v })));
+      field('Width', num(L.w, v => set({ w: v })));
+      field('Color', col(L.fill, v => set({ fill: v })));
+    }
+    if (L.type === 'rect' || L.type === 'ellipse') {
+      field('Width', num(L.w, v => set({ w: v })));
+      field('Height', num(L.h, v => set({ h: v })));
+      if (L.type === 'rect') field('Radius', num(L.r, v => set({ r: v })));
+      field('Color', col(L.fill, v => set({ fill: v })));
+    }
+    if (L.type === 'image') {
+      const ratio = L.h / L.w;
+      field('Width', num(L.w, v => set({ w: v, h: Math.round(v * ratio) })));
+    }
+  }
+
+  function refreshUI() {
+    refreshTabs();
+    refreshLayers();
+    refreshProps(E.get(E.selected()));
+    $('zv').textContent = Math.round(E.zoomNow() * 100) + '%';
+    $('size').textContent = `${D.w} × ${D.h} px`;
+    $('bg').value = D.bg; $('transp').checked = D.transparent;
+    syncPage();
+  }
+
+  // AI tools (Gemini, free key from aistudio.google.com)
+  const aiMsg = m => { $('aiMsg').textContent = m; };
+  async function busy(btn, job) {
+    btn.disabled = true; aiMsg('Working…');
+    try { await job(); aiMsg('Done.'); } catch (err) { aiMsg('Error: ' + err.message); }
+    btn.disabled = false;
+  }
+  // The user may switch tabs while the AI works. Return to the tab that started the job before adding results.
+  const back = tid => { if (!E.switchToId(tid)) throw new Error('The tab was closed before the result arrived.'); };
+  const copyLayer = (s, p) => { const o = { ...s, ...p }; delete o.id; return o; };
+  $('generate').onclick = e => busy(e.currentTarget, async () => {
+    const p = $('prompt').value.trim();
+    if (!p) throw new Error('Type a description first.');
+    const tid = E.tabId();
+    const src = await AI.generate(p);
+    back(tid); await E.addImage(src);
+  });
+  $('ghibli').onclick = e => busy(e.currentTarget, async () => {
+    const s = E.get(E.selected()), tid = E.tabId();
+    const src = s && s.type === 'image' ? E.IMG.get(s.id).src : E.exportCanvas(1).toDataURL('image/png');
+    const blob = await (await fetch(src)).blob();
+    const out = await AI.edit(blob, 'Redraw this image in the style of Studio Ghibli hand-painted anime: soft colors, detailed backgrounds, same subjects and composition. Return the image only.');
+    back(tid); await E.addImage(out);
+  });
+  $('translate').onclick = e => busy(e.currentTarget, async () => {
+    const s = E.get(E.selected()), tid = E.tabId();
+    if (!s || s.type !== 'text' || !s.text) throw new Error('Select a text layer first.');
+    const r = await AI.translate(s.text);
+    back(tid);
+    const a = E.add('text', copyLayer(s, { text: r.ku, font: 'Noto Sans Arabic', align: 'right', y: s.y + E.boxH(s) + 20 }));
+    E.add('text', copyLayer(s, { text: r.ar, font: 'Noto Sans Arabic', align: 'right', y: a.y + E.boxH(a) + 20 }));
+  });
+  $('key').value = AI.key();
+  $('key').onchange = e => AI.setKey(e.target.value);
+
+  // Keyboard: Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y, Delete
+  addEventListener('keydown', e => {
+    if (e.target.closest && e.target.closest('input,textarea,select')) return;
+    const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase(), s = E.selected();
+    if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? E.redo() : E.undo(); }
+    else if (mod && k === 'y') { e.preventDefault(); E.redo(); }
+    else if ((e.key === 'Delete' || e.key === 'Backspace') && s) { e.preventDefault(); E.remove(s); }
+  });
+  E.canvas.addEventListener('pointermove', e => { const [x, y] = E.toDoc(e); $('pos').textContent = `x ${Math.round(x)} · y ${Math.round(y)}`; });
+
+  // Start
+  E.onChange(refreshUI);
+  $('preset').value = 'instagram';
+  applyPage();
+  setLang(localStorage.getItem('studio_lang') || 'en');
+  fit();
+  refreshUI();
+})();
+
+</script>
+</body>
+</html>
