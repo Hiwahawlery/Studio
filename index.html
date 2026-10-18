@@ -80,5 +80,17 @@ addEventListener('error', e => { let b = document.getElementById('errbar');
 <script src="engine.js?v=5"></script>
 <script src="ai.js?v=5"></script>
 <script src="app.js?v=5"></script>
+<script>
+// Self-check: shows which files are out of date if the page is built from a mix of old and new files.
+setTimeout(() => {
+  const bad = [];
+  if (getComputedStyle(document.body).display !== 'flex') bad.push('styles.css');
+  if (typeof Engine === 'undefined' || Engine.build !== 5) bad.push('engine.js');
+  if (typeof AI === 'undefined' || AI.build !== 5) bad.push('ai.js');
+  if (typeof I18N === 'undefined' || !I18N.en.closeConfirm) bad.push('i18n.js');
+  if (!document.querySelector('#tabs .tab')) bad.push('app.js');
+  if (bad.length) { const b = document.createElement('div'); b.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#b00020;color:#fff;font:14px/1.5 sans-serif;padding:10px 14px'; b.textContent = 'These files on your server are OUT OF DATE: ' + bad.join(', ') + '. Upload the newest versions (or use the single-file studio.html) and hard refresh with Ctrl+Shift+R.'; document.body.append(b); }
+}, 600);
+</script>
 </body>
 </html>

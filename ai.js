@@ -62,7 +62,7 @@ const AI = (() => {
   }
 
   return {
-    key, setKey,
+    build: 5, key, setKey,
     generate: prompt => call(IMAGE_MODELS, [{ text: prompt }], true).then(toImage),
     edit: (blob, prompt) => toBase64(blob).then(data =>
       call(IMAGE_MODELS, [{ text: prompt }, { inlineData: { mimeType: blob.type || 'image/png', data } }], true)).then(toImage),
