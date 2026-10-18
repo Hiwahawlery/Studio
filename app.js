@@ -1,5 +1,5 @@
 import {
-  Doc, makeLayer, layoutText, BLENDS, drawLayers, drawOverlay, hitTest, handlePositions,
+  Doc, makeLayer, layoutText, fontString, BLENDS, drawLayers, drawOverlay, hitTest, handlePositions,
   resizeFrom, boundsOf, rectFrom, overlaps,
 } from "./engine.js";
 import * as AI from "./ai.js";
@@ -15,7 +15,7 @@ let tool = "select";
 let spaceDown = false;
 let drag = null;          // current pointer interaction
 let guides = {};          // snap guides shown while moving
-let lang = localStorage.getItem("studio_lang") || "en";
+let lang = localStorage.getItem("studio_lang") || "ku";   // Kurdish by default
 const t = (k) => T[lang]?.[k] || T.en[k] || k;
 
 // ---------- templates ----------
@@ -540,7 +540,12 @@ function renderProps() {
     <button data-act="ch">${t("center_h")}</button>
     <button data-act="cv">${t("center_v")}</button>
   </div>`;
-  if (l.type === "text") h += `<div class="btnrow"><button data-act="tr">${t("translate")}</button></div>`;
+  if (l.type === "text") {
+    h += `<div class="btnrow">
+      <button data-act="fit">${t("fit_width")}</button>
+      <button data-act="tr">${t("translate")}</button>
+    </div>`;
+  }
 
   box.innerHTML = h;
 
@@ -583,6 +588,20 @@ function runAct(a) {
     doc.emit();
   } else if (a === "rm") removeBackgroundSelected();
   else if (a === "tr") translateSelected();
+  else if (a === "fit") fitTextWidth();
+}
+
+// Sets a text layer's box width to its longest line, so the box hugs the words.
+function fitTextWidth() {
+  const sel = doc.selected().filter((l) => l.type === "text");
+  if (!sel.length) return;
+  doc.snapshot();
+  for (const l of sel) {
+    ctx.font = fontString(l);
+    const widest = Math.max(...(l.text || " ").split("\n").map((line) => ctx.measureText(line).width));
+    doc.update(l.id, { w: Math.ceil(widest) + 4 });
+  }
+  doc.emit();
 }
 
 // ---------- images ----------
