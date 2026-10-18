@@ -3,7 +3,7 @@
 :root[data-theme=dark]{--bg:#14161d;--panel:#1d2030;--ink:#eef0f7;--muted:#9ba3b8;--line:#2e3347;--stage:#0f1117}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
-body{display:grid;grid-template-rows:48px 1fr 28px;background:var(--bg);color:var(--ink);font:14px/1.4 Inter,"Noto Sans Arabic","Noto Sans SC",system-ui,sans-serif}
+body{display:grid;grid-template-rows:48px 36px 1fr 28px;background:var(--bg);color:var(--ink);font:14px/1.4 Inter,"Noto Sans Arabic","Noto Sans SC",system-ui,sans-serif}
 button,select,input,textarea{font:inherit;color:inherit}
 .top{display:flex;align-items:center;gap:8px;padding:0 10px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;white-space:nowrap}
 .brand{display:flex;align-items:center;gap:6px;margin-inline-end:6px}
@@ -35,3 +35,12 @@ h3{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 .muted{color:var(--muted);margin:0}
 #aiMsg{white-space:pre-wrap;font-size:12px;min-height:1em}
 @media (max-width:900px){.main{grid-template-columns:1fr}.left,.right{max-height:36vh}.stage{min-height:60vh}}
+
+.tabs{display:flex;align-items:flex-end;gap:2px;padding:4px 10px 0;background:var(--bg);border-bottom:1px solid var(--line);overflow-x:auto;white-space:nowrap}
+.tab{display:flex;align-items:center;gap:6px;max-width:220px;height:100%;padding:0 6px 0 12px;background:var(--panel);opacity:.65;border:1px solid var(--line);border-bottom:0;border-radius:8px 8px 0 0;cursor:pointer;user-select:none}
+.tab:hover{opacity:.9}
+.tab.on{opacity:1;border-color:var(--acc);box-shadow:inset 0 2px 0 var(--acc)}
+.tab span{overflow:hidden;text-overflow:ellipsis}
+.tab .x,.tabs .add{border:0;background:none;cursor:pointer;padding:0 6px;border-radius:6px;color:var(--muted);font-size:16px;line-height:22px}
+.tab .x:hover,.tabs .add:hover{background:var(--line);color:var(--ink)}
+.tabs .add{align-self:center;margin-inline-start:4px}

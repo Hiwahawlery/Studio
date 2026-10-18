@@ -1,17 +1,22 @@
-// Studio UI: toolbar, layers, properties, AI buttons, language and theme. Logic lives in engine.js and ai.js.
+// Studio UI: tabs, toolbar, layers, properties, AI buttons, language and theme. Logic lives in engine.js and ai.js.
 (() => {
   const $ = id => document.getElementById(id);
   const E = Engine, D = E.doc, stage = document.querySelector('.stage');
+  let lang = 'en';
+  const t = k => (I18N[lang] || I18N.en)[k] || I18N.en[k];
   const download = (blob, name) => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 3000);
   };
+  const tabName = () => E.tabs[E.tabIndex()].name.replace(/[\\/:*?"<>|]/g, '_');
+  const fit = () => E.fitTo(stage.clientWidth, stage.clientHeight);
 
   // Page size and orientation
   Object.entries(PRESETS).forEach(([k, p]) => $('preset').add(new Option(`${p.label} · ${p.w}×${p.h}`, k)));
   function applyPage() {
-    const p = PRESETS[$('preset').value], big = Math.max(p.w, p.h), small = Math.min(p.w, p.h);
+    const p = PRESETS[$('preset').value] || { w: D.w, h: D.h }; // 'custom' (from an opened file) keeps its size
+    const big = Math.max(p.w, p.h), small = Math.min(p.w, p.h);
     const portrait = $('orient').value === 'p';
     D.w = portrait ? small : big; D.h = portrait ? big : small;
     E.changed();
@@ -20,6 +25,15 @@
   $('orient').onchange = () => { E.checkpoint(); applyPage(); };
   $('bg').onchange = e => { E.checkpoint(); D.bg = e.target.value; E.changed(); };
   $('transp').onchange = e => { E.checkpoint(); D.transparent = e.target.checked; E.changed(); };
+  // Keep the page-size controls in sync with the active tab
+  function syncPage() {
+    const big = Math.max(D.w, D.h), small = Math.min(D.w, D.h);
+    const k = Object.keys(PRESETS).find(k => Math.max(PRESETS[k].w, PRESETS[k].h) === big && Math.min(PRESETS[k].w, PRESETS[k].h) === small);
+    const old = $('preset').querySelector('option[value=custom]'); if (old) old.remove();
+    if (k) $('preset').value = k;
+    else { $('preset').add(new Option(`Custom · ${D.w}×${D.h}`, 'custom')); $('preset').value = 'custom'; }
+    if (D.w !== D.h) $('orient').value = D.w > D.h ? 'l' : 'p';
+  }
 
   // Tools: Text, Rectangle, Ellipse add a layer; Add image opens the file picker
   const ADD = {
@@ -34,16 +48,54 @@
     const r = new FileReader(); r.onload = () => E.addImage(r.result); r.readAsDataURL(f);
   };
 
+  // Tabs
+  let tabSig = '';
+  function closeTab(i) {
+    if (E.tabs[i].dirty && !confirm(t('closeConfirm'))) return;
+    E.closeTab(i);
+  }
+  function refreshTabs() {
+    const sig = E.tabs.map(x => x.id + ':' + x.name + ':' + x.dirty).join('|') + '#' + E.tabIndex();
+    if (sig === tabSig) return; // only rebuild when something visible changed
+    tabSig = sig;
+    const box = $('tabs'); box.innerHTML = '';
+    E.tabs.forEach((tab, i) => {
+      const el = document.createElement('div');
+      el.className = 'tab' + (i === E.tabIndex() ? ' on' : '');
+      el.title = tab.name;
+      const n = document.createElement('span'); n.textContent = (tab.dirty ? '● ' : '') + tab.name;
+      const x = document.createElement('button'); x.className = 'x'; x.textContent = '×'; x.title = 'Close';
+      x.onclick = ev => { ev.stopPropagation(); closeTab(i); };
+      el.onclick = () => E.switchTo(i);
+      el.ondblclick = () => { const v = prompt('Rename', tab.name); if (v && v.trim()) E.renameTab(i, v.trim()); };
+      el.onauxclick = ev => { if (ev.button === 1) closeTab(i); };
+      el.append(n, x); box.append(el);
+    });
+    const add = document.createElement('button'); add.className = 'add'; add.textContent = '+'; add.title = 'New tab';
+    add.onclick = () => { E.newTab(); fit(); };
+    box.append(add);
+    box.querySelector('.tab.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+  addEventListener('beforeunload', e => { if (E.tabs.some(x => x.dirty)) { e.preventDefault(); e.returnValue = ''; } });
+
   // Header: undo, redo, open, save, export, templates
   $('undo').onclick = () => E.undo();
   $('redo').onclick = () => E.redo();
   $('tpl').onchange = e => { if (e.target.value) E.template(e.target.value); e.target.value = ''; };
   $('open').onclick = () => $('fileOpen').click();
-  $('fileOpen').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (f) await E.load(await f.text()); };
-  $('save').onclick = () => download(new Blob([E.project()], { type: 'application/json' }), 'design.studio.json');
+  $('fileOpen').onchange = async e => {
+    const files = [...e.target.files]; e.target.value = ''; // copy first: clearing the input empties the live list
+    for (const f of files) {
+      try {
+        await E.openProject(await f.text(), f.name.replace(/(\.studio)?\.json$/i, ''));
+        fit();
+      } catch (err) { console.error(err); alert(`${f.name}: ${t('badFile')}`); }
+    }
+  };
+  $('save').onclick = () => { download(new Blob([E.project()], { type: 'application/json' }), tabName() + '.studio.json'); E.markSaved(); };
   $('export').onclick = () => {
-    const jpg = $('fmt').value === 'jpeg';
-    E.exportCanvas(+$('scale').value).toBlob(b => download(b, 'design.' + (jpg ? 'jpg' : 'png')), jpg ? 'image/jpeg' : 'image/png', 0.95);
+    const jpg = $('fmt').value === 'jpeg', name = tabName();
+    E.exportCanvas(+$('scale').value).toBlob(b => download(b, name + (jpg ? '.jpg' : '.png')), jpg ? 'image/jpeg' : 'image/png', 0.95);
   };
 
   // Theme and language
@@ -53,20 +105,21 @@
     d.dataset.theme = now === 'dark' ? 'light' : 'dark';
   };
   function setLang(l) {
-    const dict = I18N[l] || I18N.en;
-    localStorage.setItem('studio_lang', l);
-    document.documentElement.lang = l;
-    document.documentElement.dir = l === 'ku' || l === 'ar' ? 'rtl' : 'ltr';
+    lang = I18N[l] ? l : 'en';
+    const dict = I18N[lang];
+    localStorage.setItem('studio_lang', lang);
+    document.documentElement.lang = lang;
+    document.documentElement.dir = lang === 'ku' || lang === 'ar' ? 'rtl' : 'ltr';
     document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = dict[el.dataset.i18n] || I18N.en[el.dataset.i18n]; });
     document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = dict[el.dataset.i18nPh] || ''; });
-    $('lang').value = l;
+    $('lang').value = lang;
   }
   $('lang').onchange = e => setLang(e.target.value);
 
   // Zoom
   $('zm').onclick = () => E.setZoom(E.zoomNow() / 1.25);
   $('zp').onclick = () => E.setZoom(E.zoomNow() * 1.25);
-  $('fit').onclick = () => E.fitTo(stage.clientWidth, stage.clientHeight);
+  $('fit').onclick = fit;
 
   // Layer buttons act on the selected layer
   $('up').onclick = () => { const s = E.selected(); if (s) E.move(s, 1); };
@@ -125,36 +178,44 @@
   }
 
   function refreshUI() {
+    refreshTabs();
     refreshLayers();
     refreshProps(E.get(E.selected()));
     $('zv').textContent = Math.round(E.zoomNow() * 100) + '%';
     $('size').textContent = `${D.w} × ${D.h} px`;
     $('bg').value = D.bg; $('transp').checked = D.transparent;
+    syncPage();
   }
 
   // AI tools (Gemini, free key from aistudio.google.com)
-  const aiMsg = t => { $('aiMsg').textContent = t; };
+  const aiMsg = m => { $('aiMsg').textContent = m; };
   async function busy(btn, job) {
     btn.disabled = true; aiMsg('Working…');
     try { await job(); aiMsg('Done.'); } catch (err) { aiMsg('Error: ' + err.message); }
     btn.disabled = false;
   }
+  // The user may switch tabs while the AI works. Return to the tab that started the job before adding results.
+  const back = tid => { if (!E.switchToId(tid)) throw new Error('The tab was closed before the result arrived.'); };
   const copyLayer = (s, p) => { const o = { ...s, ...p }; delete o.id; return o; };
   $('generate').onclick = e => busy(e.currentTarget, async () => {
     const p = $('prompt').value.trim();
     if (!p) throw new Error('Type a description first.');
-    await E.addImage(await AI.generate(p));
+    const tid = E.tabId();
+    const src = await AI.generate(p);
+    back(tid); await E.addImage(src);
   });
   $('ghibli').onclick = e => busy(e.currentTarget, async () => {
-    const s = E.get(E.selected());
+    const s = E.get(E.selected()), tid = E.tabId();
     const src = s && s.type === 'image' ? E.IMG.get(s.id).src : E.exportCanvas(1).toDataURL('image/png');
     const blob = await (await fetch(src)).blob();
-    await E.addImage(await AI.edit(blob, 'Redraw this image in the style of Studio Ghibli hand-painted anime: soft colors, detailed backgrounds, same subjects and composition. Return the image only.'));
+    const out = await AI.edit(blob, 'Redraw this image in the style of Studio Ghibli hand-painted anime: soft colors, detailed backgrounds, same subjects and composition. Return the image only.');
+    back(tid); await E.addImage(out);
   });
   $('translate').onclick = e => busy(e.currentTarget, async () => {
-    const s = E.get(E.selected());
+    const s = E.get(E.selected()), tid = E.tabId();
     if (!s || s.type !== 'text' || !s.text) throw new Error('Select a text layer first.');
     const r = await AI.translate(s.text);
+    back(tid);
     const a = E.add('text', copyLayer(s, { text: r.ku, font: 'Noto Sans Arabic', align: 'right', y: s.y + E.boxH(s) + 20 }));
     E.add('text', copyLayer(s, { text: r.ar, font: 'Noto Sans Arabic', align: 'right', y: a.y + E.boxH(a) + 20 }));
   });
@@ -176,6 +237,6 @@
   $('preset').value = 'instagram';
   applyPage();
   setLang(localStorage.getItem('studio_lang') || 'en');
-  E.fitTo(stage.clientWidth, stage.clientHeight);
+  fit();
   refreshUI();
 })();
