@@ -33,6 +33,24 @@ export async function generateImage(prompt, key) {
   return "data:image/png;base64," + j.data[0].b64_json;
 }
 
+// Redraws an existing image in a chosen style (image edit endpoint).
+// Returns a data: URL of the result.
+export async function styleTransfer(blob, prompt, key) {
+  const fd = new FormData();
+  fd.append("model", "gpt-image-1");
+  fd.append("prompt", prompt);
+  fd.append("image", blob, "input.png");
+  fd.append("size", "1024x1024");
+  const r = await fetch(OPENAI + "/images/edits", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}` },
+    body: fd,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error?.message || `HTTP ${r.status}`);
+  return "data:image/png;base64," + j.data[0].b64_json;
+}
+
 // Returns { ku, ar }: Central Kurdish (Sorani) and Modern Standard Arabic.
 export async function translate(text, key) {
   const j = await post("/chat/completions", key, {

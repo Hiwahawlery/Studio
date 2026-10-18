@@ -235,16 +235,22 @@ export function fontString(l) {
   return `${l.italic ? "italic " : ""}${l.weight} ${l.size}px "${l.font}"`;
 }
 
+const CJK_SPLIT = /([぀-ヿ㐀-鿿豈-﫿＀-￯])/;
+const CJK_ONE = /^[぀-ヿ㐀-鿿豈-﫿＀-￯]$/;
+
 // Splits text into lines that fit maxW. The ctx must already have the font set.
 export function wrapLines(ctx, text, maxW) {
   const out = [];
   for (const para of String(text).split("\n")) {
+    // CJK characters have no spaces, so each one is a possible break point.
+    const parts = para.split(" ").flatMap((w) => w.split(CJK_SPLIT).filter(Boolean));
     let line = "";
-    for (const word of para.split(" ")) {
-      const test = line ? `${line} ${word}` : word;
+    for (const part of parts) {
+      const needsSpace = line && !CJK_ONE.test(line.slice(-1)) && !CJK_ONE.test(part[0]);
+      const test = line + (needsSpace ? " " : "") + part;
       if (line && ctx.measureText(test).width > maxW) {
         out.push(line);
-        line = word;
+        line = part;
       } else {
         line = test;
       }

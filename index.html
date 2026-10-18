@@ -1,11 +1,12 @@
 <!doctype html>
-<html lang="en" dir="ltr">
+<html lang="ku" dir="rtl" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Studio</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- UI fonts: Kurdish/Arabic, Latin. Other fonts load on demand (see fonts.js). -->
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Naskh+Arabic:wght@400;700&family=Noto+Sans+Arabic:wght@400;700;900&family=Vazirmatn:wght@400;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -19,6 +20,8 @@
       <option value="post">Social post</option>
       <option value="poster">Poster</option>
       <option value="story">Story</option>
+      <option value="ku">Kurdish greeting</option>
+      <option value="cn">Chinese poster</option>
     </select>
     <div class="spacer"></div>
     <button id="undoBtn" data-i18n="undo">Undo</button>
@@ -26,8 +29,13 @@
     <button id="openBtn" data-i18n="open">Open</button>
     <button id="saveBtn" data-i18n="save">Save</button>
     <select id="expFmt" aria-label="Format"><option value="png">PNG</option><option value="jpg">JPG</option></select>
-    <select id="expScale" aria-label="Scale"><option value="1">1×</option><option value="2" selected>2×</option><option value="3">3×</option></select>
+    <select id="expScale" aria-label="Scale">
+      <option value="1">1× (print 300 dpi on A-sizes)</option>
+      <option value="2" selected>2×</option>
+      <option value="3">3×</option>
+    </select>
     <button id="exportBtn" class="primary" data-i18n="export">Export</button>
+    <button id="themeBtn" title="Theme">☀</button>
     <select id="lang" aria-label="Language">
       <option value="en">English</option>
       <option value="ku">کوردی</option>
@@ -49,15 +57,22 @@
       <label class="row"><span data-i18n="brush_size">Brush size</span><input id="brushSize" type="range" min="1" max="120" value="16"></label>
       <label class="row"><span data-i18n="brush_color">Brush colour</span><input id="brushColor" type="color" value="#7c5cff"></label>
       <hr>
-      <label class="stack"><span data-i18n="artboard">Artboard</span>
-        <select id="sizePreset">
-          <option value="1080,1080">Square 1080×1080</option>
-          <option value="1080,1920">Story 1080×1920</option>
-          <option value="1200,1600">Poster 1200×1600</option>
-          <option value="1200,628">Link 1200×628</option>
-          <option value="1920,1080">Landscape 1920×1080</option>
+      <label class="stack"><span data-i18n="page">Page size</span>
+        <select id="pageSelect"></select>
+      </label>
+      <label class="stack"><span data-i18n="orientation">Orientation</span>
+        <select id="orient">
+          <option value="portrait" data-i18n="portrait">Portrait</option>
+          <option value="landscape" data-i18n="landscape">Landscape</option>
         </select>
       </label>
+      <div class="custom" id="customBox" hidden>
+        <div class="row2">
+          <label><span>W mm</span><input id="customW" type="number" min="10" value="210"></label>
+          <label><span>H mm</span><input id="customH" type="number" min="10" value="297"></label>
+        </div>
+        <button id="customApply" data-i18n="apply">Apply</button>
+      </div>
       <label class="row"><span data-i18n="background">Background</span><input id="bgColor" type="color" value="#ffffff"></label>
       <label class="row"><input id="bgTransparent" type="checkbox"><span data-i18n="transparent">Transparent</span></label>
     </nav>
@@ -93,6 +108,7 @@
         <h4 data-i18n="ai">AI tools</h4>
         <div class="btnrow col">
           <button id="aiRemoveBg" data-i18n="remove_bg">Remove background</button>
+          <button id="aiGhibli" data-i18n="ghibli">Ghibli style (AI)</button>
           <button id="aiGenerate" data-i18n="generate">Generate image</button>
           <button id="aiTranslate" data-i18n="translate">Translate to Kurdish + Arabic</button>
         </div>

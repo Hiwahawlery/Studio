@@ -1,9 +1,11 @@
 import {
-  Doc, makeLayer, layoutText, fontString, BLENDS, drawLayers, drawOverlay, hitTest, handlePositions,
-  resizeFrom, boundsOf, rectFrom, overlaps,
+  Doc, makeLayer, layoutText, fontString, BLENDS, drawLayers, drawOverlay, hitTest,
+  handlePositions, resizeFrom, boundsOf, rectFrom, overlaps,
 } from "./engine.js";
 import * as AI from "./ai.js";
 import { T, LANGS } from "./i18n.js";
+import { FONT_GROUPS, loadFont } from "./fonts.js";
+import { PAGE_GROUPS, ALL_PAGES, DPI, findPage, pagePixels, mmToPx, pxToMm } from "./presets.js";
 
 const $ = (s) => document.querySelector(s);
 const stage = $("#stage");
@@ -13,12 +15,27 @@ const view = { zoom: 1, ox: 0, oy: 0 };
 
 let tool = "select";
 let spaceDown = false;
-let drag = null;          // current pointer interaction
+let drag = null;           // current pointer interaction
 let guides = {};          // snap guides shown while moving
 let lang = localStorage.getItem("studio_lang") || "ku";   // Kurdish by default
+let theme = localStorage.getItem("studio_theme") || "dark";
+let orient = localStorage.getItem("studio_orient") || "portrait";
 const t = (k) => T[lang]?.[k] || T.en[k] || k;
 
-// ---------- templates ----------
+// ---------- presets ----------
+const FILTERS = {
+  none: { brightness: 100, contrast: 100, saturate: 100, blur: 0 },
+  vintage: { brightness: 106, contrast: 88, saturate: 70, blur: 0 },
+  warm: { brightness: 104, contrast: 106, saturate: 125, blur: 0 },
+  cool: { brightness: 100, contrast: 104, saturate: 82, blur: 0 },
+  mono: { brightness: 102, contrast: 112, saturate: 0, blur: 0 },
+};
+
+const GHIBLI_PROMPT =
+  "Redraw this image in the hand-painted style of a Studio Ghibli-inspired animated film: " +
+  "soft watercolour skies, lush detailed greenery, warm natural light, gentle linework. " +
+  "Keep the same subject and composition.";
+
 const TEMPLATES = {
   post: {
     w: 1080, h: 1080, bg: "#0b0b12", layers: [
@@ -38,7 +55,30 @@ const TEMPLATES = {
       { type: "text", x: 90, y: 760, w: 900, text: "Your story starts here", font: "Vazirmatn", weight: 900, size: 120, color: "#ffffff", align: "center", name: "Title" },
     ],
   },
+  ku: {
+    w: 1080, h: 1080, bg: "#fff6e6", layers: [
+      { type: "rect", x: 80, y: 80, w: 920, h: 920, fill: "#9e1f1f", radius: 40, name: "Frame" },
+      { type: "text", x: 120, y: 380, w: 840, text: "بەخێربێن", font: "Vazirmatn", weight: 900, size: 150, color: "#f7e7bd", align: "center", name: "Greeting" },
+      { type: "text", x: 120, y: 640, w: 840, text: "Welcome · مرحبا", font: "Inter", weight: 600, size: 52, color: "#f3d27a", align: "center", name: "Subline" },
+    ],
+  },
+  cn: {
+    w: 1080, h: 1440, bg: "#fff8ef", layers: [
+      { type: "text", x: 90, y: 330, w: 900, text: "春天的故事", font: "ZCOOL XiaoWei", weight: 400, size: 170, color: "#9e1f1f", align: "center", name: "Title" },
+      { type: "text", x: 90, y: 700, w: 900, text: "A spring story", font: "Noto Serif SC", weight: 400, size: 56, color: "#6b1212", align: "center", name: "Subline" },
+    ],
+  },
 };
+
+// ---------- theme ----------
+function applyTheme(name) {
+  theme = name;
+  document.documentElement.dataset.theme = name;
+  localStorage.setItem("studio_theme", name);
+  $("#themeBtn").textContent = name === "dark" ? "☀" : "☾";
+  $("#themeBtn").title = name === "dark" ? t("light") : t("dark");
+  redraw();
+}
 
 // ---------- stage sizing and view ----------
 function resizeStage() {
@@ -98,7 +138,7 @@ function redraw() {
   ctx.fillRect(0, 0, doc.w, doc.h);
   ctx.restore();
 
-  // Artboard contents (clipped to the artboard)
+  // Artboard contents, clipped to the artboard
   ctx.save();
   ctx.beginPath();
   ctx.rect(0, 0, doc.w, doc.h);
@@ -114,7 +154,6 @@ function redraw() {
     handles: tool === "select",
   });
 
-  // Live previews
   if (drag?.mode === "draw" && drag.points.length) {
     ctx.save();
     ctx.lineCap = "round";
@@ -143,7 +182,8 @@ function redraw() {
 
 function updateStatus() {
   $("#zoomPct").textContent = Math.round(view.zoom * 100) + "%";
-  $("#docInfo").textContent = `${doc.w} × ${doc.h}`;
+  const mw = pxToMm(doc.w), mh = pxToMm(doc.h);
+  $("#docInfo").textContent = `${doc.w} × ${doc.h}px · ${mw} × ${mh} mm @ ${DPI} dpi`;
 }
 
 // ---------- pointer ----------
@@ -192,7 +232,7 @@ stage.addEventListener("pointerdown", (e) => {
     doc.add({
       type: "text", x: p.x, y: p.y, w: Math.round(doc.w * 0.5), text: "Your text",
       font: "Vazirmatn", weight: 700, size: Math.round(doc.w / 16), color: "#111111",
-      align: "start", name: t("text"),
+      align: "start", name: t("tool_text"),
     });
     setTool("select");
     return;
@@ -278,11 +318,8 @@ stage.addEventListener("pointermove", (e) => {
 
     case "move": {
       let dx = p.x - drag.start.x, dy = p.y - drag.start.y;
-      // Snap the selection's edges and centre to the artboard's edges and centre.
       const moved = drag.items.map((it) => ({ ...doc.get(it.id), x: it.x + dx, y: it.y + dy }));
-      const b = boundsOf(moved);
-      const thr = 6 / view.zoom;
-      const snap = snapDelta(b, thr);
+      const snap = snapDelta(boundsOf(moved), 6 / view.zoom);
       dx += snap.dx; dy += snap.dy;
       guides = { gx: snap.gx, gy: snap.gy };
       for (const it of drag.items) doc.update(it.id, { x: it.x + dx, y: it.y + dy });
@@ -323,8 +360,7 @@ stage.addEventListener("pointerup", (e) => {
     const hits = doc.layers
       .filter((l) => l.visible && !l.locked && overlaps(boundsOf([l]), r))
       .map((l) => l.id);
-    const ids = d.additive ? [...new Set([...doc.selection, ...hits])] : hits;
-    doc.setSelection(ids);
+    doc.setSelection(d.additive ? [...new Set([...doc.selection, ...hits])] : hits);
   }
 
   if (d.mode === "create") setTool("select");
@@ -355,15 +391,15 @@ stage.addEventListener("wheel", (e) => {
   }
 }, { passive: false });
 
-// Snap helper: returns the offset needed to align the box with artboard edges/centre.
+// Offset needed to align a box with the artboard's edges and centre.
 function snapDelta(b, thr) {
   let dx = 0, dy = 0, gx = null, gy = null;
   const tx = [0, doc.w / 2, doc.w], ty = [0, doc.h / 2, doc.h];
   for (const p of [b.x, b.x + b.w / 2, b.x + b.w]) {
-    for (const t of tx) if (gx === null && Math.abs(p - t) < thr) { dx = t - p; gx = t; }
+    for (const v of tx) if (gx === null && Math.abs(p - v) < thr) { dx = v - p; gx = v; }
   }
   for (const p of [b.y, b.y + b.h / 2, b.y + b.h]) {
-    for (const t of ty) if (gy === null && Math.abs(p - t) < thr) { dy = t - p; gy = t; }
+    for (const v of ty) if (gy === null && Math.abs(p - v) < thr) { dy = v - p; gy = v; }
   }
   return { dx, dy, gx, gy };
 }
@@ -408,10 +444,10 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); doc.remove(); return; }
   if (e.key.startsWith("Arrow")) {
     e.preventDefault();
+    if (!doc.selection.length) return;
     const step = e.shiftKey ? 10 : 1;
     const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
     const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
-    if (!doc.selection.length) return;
     doc.snapshot();
     for (const l of doc.selected()) doc.update(l.id, { x: l.x + dx, y: l.y + dy });
     doc.emit();
@@ -481,6 +517,12 @@ function renderLayers() {
 }
 
 // ---------- properties panel ----------
+function fontOptions(current) {
+  return FONT_GROUPS.map((g) =>
+    `<optgroup label="${g.label}">${g.fonts.map((f) => `<option ${f === current ? "selected" : ""}>${f}</option>`).join("")}</optgroup>`
+  ).join("");
+}
+
 function renderProps() {
   const box = $("#props");
   const sel = doc.selected();
@@ -517,16 +559,24 @@ function renderProps() {
 
   if (l.type === "text") {
     h += `<label>${t("text")}<textarea data-k="text" rows="4">${esc(l.text)}</textarea></label>`;
-    h += select("font", "font", ["Vazirmatn", "Noto Sans Arabic", "Noto Naskh Arabic", "Inter"].map((f) => ({ v: f, t: f })));
+    h += `<label>${t("font")}<select data-k="font">${fontOptions(l.font)}</select></label>`;
     h += `<div class="grid2">${num("size", "size")}${num("weight", "weight", 'step="100" min="100" max="900"')}</div>`;
     h += `<div class="grid2">${color("color", "color")}${select("align", "align", [
       { v: "start", t: t("start") }, { v: "center", t: t("center") }, { v: "end", t: t("end") },
     ])}</div>`;
     h += `<div class="grid2">${num("strokeWidth", "stroke_w")}${color("strokeColor", "stroke_c")}</div>`;
+    h += `<div class="btnrow">
+      <button data-act="fit">${t("fit_width")}</button>
+      <button data-act="tr">${t("translate")}</button>
+    </div>`;
   } else if (l.type === "image") {
+    h += `<label>${t("filters")}<select data-film>${[
+      { v: "none", t: t("film_none") }, { v: "vintage", t: t("film_vintage") },
+      { v: "warm", t: t("film_warm") }, { v: "cool", t: t("film_cool") }, { v: "mono", t: t("film_mono") },
+    ].map((o) => `<option value="${o.v}">${o.t}</option>`).join("")}</select></label>`;
     h += range("brightness", "brightness", 0, 200) + range("contrast", "contrast", 0, 200);
     h += range("saturate", "saturate", 0, 300) + range("blur", "blur", 0, 20);
-    h += `<div class="btnrow"><button data-act="rm">${t("remove_bg")}</button></div>`;
+    h += `<div class="btnrow"><button data-act="rm">${t("remove_bg")}</button><button data-act="ghibli">${t("ghibli")}</button></div>`;
   } else if (l.type === "rect" || l.type === "ellipse") {
     h += color("fill", "fill");
     if (l.type === "rect") h += num("radius", "radius");
@@ -540,12 +590,6 @@ function renderProps() {
     <button data-act="ch">${t("center_h")}</button>
     <button data-act="cv">${t("center_v")}</button>
   </div>`;
-  if (l.type === "text") {
-    h += `<div class="btnrow">
-      <button data-act="fit">${t("fit_width")}</button>
-      <button data-act="tr">${t("translate")}</button>
-    </div>`;
-  }
 
   box.innerHTML = h;
 
@@ -557,15 +601,20 @@ function renderProps() {
       doc.update(l.id, { [el.dataset.k]: raw });
       redraw();
     });
-    if (el.tagName === "SELECT" || el.type === "color") {
-      el.addEventListener("change", () => doc.emit());
-    }
+    if (el.tagName === "SELECT" || el.type === "color") el.addEventListener("change", () => doc.emit());
   });
   box.querySelectorAll("[data-fx]").forEach((el) => {
     el.addEventListener("focus", () => doc.snapshot());
     el.addEventListener("input", () => {
       l.fx[el.dataset.fx] = parseFloat(el.value);
       redraw();
+    });
+  });
+  box.querySelectorAll("[data-film]").forEach((el) => {
+    el.addEventListener("change", () => {
+      doc.snapshot();
+      doc.update(l.id, { fx: { ...FILTERS[el.value] } });
+      doc.emit();
     });
   });
   bindActs(box);
@@ -582,13 +631,12 @@ function runAct(a) {
   if (!sel.length) return;
   if (a === "ch" || a === "cv") {
     doc.snapshot();
-    for (const l of sel) {
-      doc.update(l.id, a === "ch" ? { x: (doc.w - l.w) / 2 } : { y: (doc.h - l.h) / 2 });
-    }
+    for (const l of sel) doc.update(l.id, a === "ch" ? { x: (doc.w - l.w) / 2 } : { y: (doc.h - l.h) / 2 });
     doc.emit();
   } else if (a === "rm") removeBackgroundSelected();
   else if (a === "tr") translateSelected();
   else if (a === "fit") fitTextWidth();
+  else if (a === "ghibli") ghibliSelected();
 }
 
 // Sets a text layer's box width to its longest line, so the box hugs the words.
@@ -668,6 +716,20 @@ async function removeBackgroundSelected() {
   }
 }
 
+async function ghibliSelected() {
+  const l = doc.selected().find((x) => x.type === "image");
+  if (!l) return toast(t("need_image"));
+  toast(t("working"), 90000);
+  try {
+    const blob = await (await fetch(doc.assetSrc(l.asset))).blob();
+    const src = await AI.styleTransfer(blob, GHIBLI_PROMPT, apiKey());
+    await insertImageSrc(src, "Ghibli style");
+    toast(t("ghibli_done"));
+  } catch (err) {
+    toast(`${t("error")}: ${err.message}`, 6000);
+  }
+}
+
 async function generateImageAction() {
   const prompt = window.prompt(t("prompt"));
   if (!prompt) return;
@@ -708,11 +770,44 @@ async function translateSelected() {
   }
 }
 
-// ---------- templates, size, background ----------
+// ---------- pages ----------
+function buildPageSelect() {
+  $("#pageSelect").innerHTML =
+    PAGE_GROUPS.map((g) =>
+      `<optgroup label="${g.label}">${g.items.map((p) => `<option value="${p.id}">${p.name}</option>`).join("")}</optgroup>`
+    ).join("") + `<option value="custom">${t("custom_mm")}</option>`;
+}
+
+// Keeps the page dropdown in step with the artboard's real size.
+function syncPageSelect() {
+  const match = ALL_PAGES.find((p) => {
+    const [w, h] = pagePixels(p);
+    return (w === doc.w && h === doc.h) || (w === doc.h && h === doc.w);
+  });
+  const sel = $("#pageSelect");
+  const want = match ? match.id : "custom";
+  if (sel.value !== want) sel.value = want;
+  $("#customBox").hidden = want !== "custom";
+  $("#orient").value = orient;
+}
+
+function applyPage(id) {
+  const p = findPage(id);
+  if (!p) return;
+  let [w, h] = pagePixels(p);
+  if (p.mm && w !== h) {
+    const wantLandscape = orient === "landscape";
+    if (wantLandscape !== w > h) [w, h] = [h, w];
+  }
+  doc.setSize(w, h);
+  fitView();
+}
+
+// ---------- templates, background ----------
 function applyTemplate(name) {
   const tpl = TEMPLATES[name];
   if (!tpl) return;
-  doc.reset({ w: tpl.w, h: tpl.h, bg: tpl.bg, layers: tpl.layers });  // one undo step
+  doc.reset({ w: tpl.w, h: tpl.h, bg: tpl.bg, layers: tpl.layers });   // one undo step
   fitView();
 }
 
@@ -743,7 +838,7 @@ function saveProject() {
   const used = new Set(doc.layers.filter((l) => l.asset).map((l) => l.asset));
   const assets = {};
   for (const id of used) assets[id] = doc.assetSrc(id);
-  const data = { app: "studio", version: 3, w: doc.w, h: doc.h, bg: doc.bg, layers: doc.layers, assets };
+  const data = { app: "studio", version: 4, w: doc.w, h: doc.h, bg: doc.bg, layers: doc.layers, assets };
   const name = ($("#docName").value || "design").trim();
   download(new Blob([JSON.stringify(data)], { type: "application/json" }), `${name}.studio.json`);
 }
@@ -757,6 +852,13 @@ async function openProject(file) {
   doc.reset({ w: data.w, h: data.h, bg: data.bg, layers: data.layers });
   $("#docName").value = file.name.replace(/\.studio\.json$/i, "").replace(/\.json$/i, "");
   fitView();
+}
+
+// ---------- fonts ----------
+// Loads every font a text layer uses; redraws once each one is ready.
+function ensureFonts() {
+  const fonts = new Set(doc.layers.filter((l) => l.type === "text").map((l) => l.font));
+  for (const f of fonts) loadFont(f).then(redraw);
 }
 
 // ---------- toast ----------
@@ -776,6 +878,8 @@ function applyLang(code) {
   document.documentElement.dir = LANGS[lang].dir;
   document.querySelectorAll("[data-i18n]").forEach((el) => { el.textContent = t(el.dataset.i18n); });
   $("#lang").value = lang;
+  buildPageSelect();
+  applyTheme(theme);
   doc.emit();
 }
 
@@ -794,11 +898,27 @@ function wire() {
   $("#delBtn").onclick = () => doc.remove();
 
   $("#templates").onchange = (e) => { applyTemplate(e.target.value); e.target.value = ""; };
-  $("#sizePreset").onchange = (e) => {
-    const [w, h] = e.target.value.split(",").map(Number);
+
+  $("#pageSelect").onchange = (e) => {
+    if (e.target.value === "custom") {
+      $("#customBox").hidden = false;
+      return;
+    }
+    $("#customBox").hidden = true;
+    applyPage(e.target.value);
+  };
+  $("#orient").onchange = (e) => {
+    orient = e.target.value;
+    localStorage.setItem("studio_orient", orient);
+    const id = $("#pageSelect").value;
+    if (id !== "custom") applyPage(id);
+  };
+  $("#customApply").onclick = () => {
+    const w = mmToPx(+$("#customW").value || 210), h = mmToPx(+$("#customH").value || 297);
     doc.setSize(w, h);
     fitView();
   };
+
   $("#bgColor").addEventListener("focus", () => doc.snapshot());
   $("#bgColor").addEventListener("input", (e) => {
     doc.bg = e.target.value;
@@ -825,7 +945,10 @@ function wire() {
     try { await openProject(f); toast(t("done")); } catch (err) { toast(`${t("error")}: ${err.message}`, 5000); }
   };
 
+  $("#themeBtn").onclick = () => applyTheme(theme === "dark" ? "light" : "dark");
+
   $("#aiRemoveBg").onclick = removeBackgroundSelected;
+  $("#aiGhibli").onclick = ghibliSelected;
   $("#aiGenerate").onclick = generateImageAction;
   $("#aiTranslate").onclick = translateSelected;
 
@@ -836,8 +959,15 @@ function wire() {
 }
 
 // ---------- start ----------
-doc.onChange(() => { redraw(); renderLayers(); renderProps(); });
+doc.onChange(() => {
+  syncPageSelect();
+  ensureFonts();
+  redraw();
+  renderLayers();
+  renderProps();
+});
 wire();
+buildPageSelect();
 resizeStage();
 applyTemplate("post");
 doc.undoStack = [];

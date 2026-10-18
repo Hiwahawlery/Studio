@@ -27,6 +27,10 @@ export const T = {
     need_image: "Select an image layer first.", need_text: "Select a text layer first.",
     need_key: "Add your OpenAI key in the AI section.", working: "Working…", done: "Done.",
     error: "Error", prompt: "Describe the image you want:", fit_width: "Fit width to text",
+    theme: "Theme", light: "Light", dark: "Dark", page: "Page size", orientation: "Orientation",
+    portrait: "Portrait", landscape: "Landscape", custom_mm: "Custom (mm)", apply: "Apply",
+    ghibli: "Ghibli style (AI)", filters: "Filters", film_none: "None", film_vintage: "Vintage",
+    film_warm: "Warm", film_cool: "Cool", film_mono: "Mono", ghibli_done: "Ghibli style applied.",
   },
   ku: {
     tool_select: "هەڵبژاردن", tool_text: "نووسین", tool_rect: "لاکێشە", tool_ellipse: "بازنە",
@@ -49,6 +53,10 @@ export const T = {
     need_image: "یەکەم جار تەبەقەیەکی وێنە هەڵبژێرە.", need_text: "یەکەم جار تەبەقەیەکی نووسین هەڵبژێرە.",
     need_key: "کلیلی OpenAI لە بەشی AI زیاد بکە.", working: "کار دەکرێت…", done: "تەواو بوو.",
     error: "هەڵە", prompt: "ئەو وێنەیە وەسف بکە کە دەتەوێت:", fit_width: "پانیی بۆ نووسین",
+    theme: "ڕووکار", light: "ڕووناک", dark: "تاریک", page: "قەبارەی پەڕە", orientation: "ئاراستە",
+    portrait: "بەرز", landscape: "پان", custom_mm: "دڵخواز (mm)", apply: "جێبەجێکردن",
+    ghibli: "ستایلی Ghibli (AI)", filters: "فلتەرەکان", film_none: "هیچ", film_vintage: "کۆن",
+    film_warm: "گەرم", film_cool: "ساردە", film_mono: "ڕەش و سپی", ghibli_done: "ستایلی Ghibli جێبەجێ کرا.",
   },
   ar: {
     tool_select: "تحديد", tool_text: "نص", tool_rect: "مستطيل", tool_ellipse: "بيضاوي",
@@ -70,5 +78,9 @@ export const T = {
     need_image: "اختر طبقة صورة أولاً.", need_text: "اختر طبقة نص أولاً.",
     need_key: "أضف مفتاح OpenAI في قسم الذكاء الاصطناعي.", working: "جارٍ العمل…", done: "تم.",
     error: "خطأ", prompt: "صف الصورة التي تريدها:", fit_width: "ملاءمة العرض للنص",
+    theme: "المظهر", light: "فاتح", dark: "داكن", page: "حجم الصفحة", orientation: "الاتجاه",
+    portrait: "عمودي", landscape: "أفقي", custom_mm: "مخصص (مم)", apply: "تطبيق",
+    ghibli: "نمط Ghibli (ذكاء اصطناعي)", filters: "المرشحات", film_none: "بدون", film_vintage: "قديم",
+    film_warm: "دافئ", film_cool: "بارد", film_mono: "أبيض وأسود", ghibli_done: "تم تطبيق نمط Ghibli.",
   },
 };

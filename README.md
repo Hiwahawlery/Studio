@@ -47,6 +47,9 @@ You can also paste an image from the clipboard or drag an image file onto the ca
 - `app.js`: tools, pointer and keyboard handling, panels, import/export
 - `ai.js`: AI calls
 - `i18n.js`: interface strings in English, Kurdish and Arabic
+- `fonts.js`: font catalogue (Kurdish/Arabic/Persian, Chinese, English, display) and on-demand loading
+- `presets.js`: page sizes (A0–A6, US sizes, business card, posters, social, screen), 300 dpi conversion
+- `logo.svg`: the logo
 
 ## Put it on GitHub
 
