@@ -1,4 +1,4 @@
-// Studio engine: document model, layers, drawing, undo/redo, tabs, export. No DOM controls here.
+// Studio engine: document model, layers, drawing, undo/redo, export. No DOM controls here.
 const Engine = (() => {
   const doc = { w: 1080, h: 1080, bg: '#ffffff', transparent: false, layers: [] };
   const IMG = new Map(); // layer id -> <img>. Images stay out of undo snapshots.
@@ -8,72 +8,16 @@ const Engine = (() => {
   const listeners = [];
   let seq = 1, zoom = 0.5, selId = null, past = [], future = [], drag = null;
 
-  // Tabs: the live document above belongs to tabs[cur]. Other tabs keep their state in .st
-  const tabs = [{ id: 1, name: 'Untitled 1', dirty: false, st: null }];
-  let cur = 0, tabSeq = 2, untitled = 2;
-
   const snap = () => JSON.stringify({ w: doc.w, h: doc.h, bg: doc.bg, transparent: doc.transparent, layers: doc.layers });
   const get = id => doc.layers.find(l => l.id === id) || null;
   const fontOf = L => `${L.italic ? 'italic ' : ''}${L.weight || 400} ${L.size}px ${FONTS.stack(L.font || 'Inter')}`;
   const loadImg = src => new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src; });
-  const markDirty = () => { tabs[cur].dirty = true; };
 
   function changed() { render(); listeners.forEach(f => f()); }
-  function checkpoint() { markDirty(); past.push(snap()); if (past.length > 200) past.shift(); future = []; }
-  function restore(s) { markDirty(); Object.assign(doc, JSON.parse(s)); if (!get(selId)) selId = null; changed(); }
+  function checkpoint() { past.push(snap()); if (past.length > 200) past.shift(); future = []; }
+  function restore(s) { Object.assign(doc, JSON.parse(s)); if (!get(selId)) selId = null; changed(); }
   const undo = () => { if (past.length) { future.push(snap()); restore(past.pop()); } };
   const redo = () => { if (future.length) { past.push(snap()); restore(future.pop()); } };
-
-  // ---------- Tabs ----------
-  function stash() { // save the live document into the current tab
-    tabs[cur].st = { w: doc.w, h: doc.h, bg: doc.bg, transparent: doc.transparent, layers: doc.layers, img: new Map(IMG), past, future, selId, zoom };
-  }
-  function activate(i) { // make tab i the live document
-    cur = i; const s = tabs[i].st;
-    drag = null;
-    Object.assign(doc, { w: s.w, h: s.h, bg: s.bg, transparent: s.transparent, layers: s.layers });
-    IMG.clear(); s.img.forEach((im, k) => IMG.set(k, im));
-    past = s.past; future = s.future; selId = s.selId; zoom = s.zoom;
-  }
-  function addTab(name, state, imgs, reuse) {
-    const st = { ...state, img: imgs || new Map(), past: [], future: [], selId: null, zoom: 0.5 };
-    name = name || 'Untitled ' + untitled++;
-    if (reuse) Object.assign(tabs[cur], { name, dirty: false, st });
-    else { stash(); tabs.push({ id: tabSeq++, name, dirty: false, st }); cur = tabs.length - 1; }
-    activate(cur); changed();
-  }
-  const newTab = () => addTab(null, { w: 1080, h: 1080, bg: '#ffffff', transparent: false, layers: [] });
-  function switchTo(i) {
-    if (i === cur || i < 0 || i >= tabs.length) return;
-    stash(); activate(i); changed();
-  }
-  function switchToId(id) { // false if that tab was closed meanwhile
-    const i = tabs.findIndex(t => t.id === id);
-    if (i < 0) return false;
-    switchTo(i); return true;
-  }
-  function closeTab(i) {
-    if (i < 0 || i >= tabs.length) return;
-    if (tabs.length === 1) { newTab(); tabs.splice(0, 1); cur = 0; changed(); return; }
-    if (i === cur) { tabs.splice(i, 1); activate(Math.min(i, tabs.length - 1)); }
-    else { tabs.splice(i, 1); if (i < cur) cur--; }
-    changed();
-  }
-  function renameTab(i, name) { if (tabs[i]) { tabs[i].name = name; changed(); } }
-  function markSaved() { tabs[cur].dirty = false; changed(); }
-
-  // Open a saved project (text of a .studio.json file). Uses the current tab if it is still blank, otherwise a new tab.
-  async function openProject(text, name) {
-    let o;
-    try { o = JSON.parse(text); } catch { throw new Error('Not valid JSON'); }
-    if (!o || !Array.isArray(o.layers) || !(o.w > 0) || !(o.h > 0)) throw new Error('Not a Studio project');
-    const imgs = new Map();
-    await Promise.all(Object.entries(o.images || {}).map(([id, src]) => loadImg(src).then(im => imgs.set(id, im)).catch(() => {})));
-    for (const L of o.layers) { const n = parseInt(String(L.id).replace(/\D/g, ''), 10); if (n >= seq) seq = n + 1; } // keep new ids unique
-    for (const L of o.layers) if (!L.id) L.id = 'L' + seq++;
-    const pristine = !tabs[cur].dirty && !doc.layers.length && !past.length;
-    addTab(name, { w: +o.w, h: +o.h, bg: o.bg || '#ffffff', transparent: !!o.transparent, layers: o.layers }, imgs, pristine);
-  }
 
   // Wrap text to the box width. Words wrap at spaces; long runs (Chinese has no spaces) break by character.
   function lines(L) {
@@ -190,8 +134,7 @@ const Engine = (() => {
   canvas.addEventListener('pointermove', e => {
     if (!drag) return;
     const [x, y] = toDoc(e), L = get(drag.id);
-    if (!L) { drag = null; return; }
-    if (!drag.moved) { markDirty(); past.push(drag.before); if (past.length > 200) past.shift(); future = []; drag.moved = true; }
+    if (!drag.moved) { past.push(drag.before); if (past.length > 200) past.shift(); future = []; drag.moved = true; }
     L.x = Math.round(x - drag.dx); L.y = Math.round(y - drag.dy); changed();
   });
   const endDrag = () => { drag = null; };
@@ -206,8 +149,13 @@ const Engine = (() => {
     for (const L of doc.layers) if (L.visible !== false) drawLayer(x, L);
     return c;
   }
-  const project = () => JSON.stringify({ app: 'studio', v: 1, w: doc.w, h: doc.h, bg: doc.bg, transparent: doc.transparent, layers: doc.layers,
-    images: Object.fromEntries([...IMG].filter(([k]) => doc.layers.some(l => l.id === k)).map(([k, im]) => [k, im.src])) });
+  const project = () => JSON.stringify({ app: 'studio', v: 1, w: doc.w, h: doc.h, bg: doc.bg, transparent: doc.transparent, layers: doc.layers, images: Object.fromEntries([...IMG].map(([k, im]) => [k, im.src])) });
+  function load(text) {
+    const o = JSON.parse(text);
+    IMG.clear(); past = []; future = []; selId = null;
+    Object.assign(doc, { w: o.w, h: o.h, bg: o.bg, transparent: !!o.transparent, layers: o.layers || [] });
+    return Promise.all(Object.entries(o.images || {}).map(([id, src]) => loadImg(src).then(im => IMG.set(id, im)))).then(() => changed());
+  }
 
   const setZoom = z => { zoom = Math.min(3, Math.max(0.1, z)); changed(); };
   const fitTo = (sw, sh) => setZoom(Math.min((sw - 60) / doc.w, (sh - 60) / doc.h));
@@ -215,7 +163,5 @@ const Engine = (() => {
   const onChange = f => listeners.push(f);
 
   changed();
-  return { doc, canvas, IMG, get, add, addImage, remove, move, duplicate, update, undo, redo, template, select, setZoom, fitTo, onChange, changed, checkpoint, toDoc, boxH, exportCanvas, project,
-    tabs, tabIndex: () => cur, tabId: () => tabs[cur].id, newTab, switchTo, switchToId, closeTab, renameTab, markSaved, openProject,
-    selected: () => selId, zoomNow: () => zoom };
+  return { doc, canvas, IMG, get, add, addImage, remove, move, duplicate, update, undo, redo, template, select, setZoom, fitTo, onChange, changed, checkpoint, toDoc, boxH, exportCanvas, project, load, selected: () => selId, zoomNow: () => zoom };
 })();
